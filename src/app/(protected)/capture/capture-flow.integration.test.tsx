@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 
 // Use vi.hoisted to define mock functions that vi.mock factories can reference
 const { mockAnalyzeWithFallback, mockSyncCapture } = vi.hoisted(() => ({
@@ -181,8 +181,6 @@ import CapturePage from './page';
 const HUD_CAPTURE_BUTTON = 'hud-capture-button';
 /** Texto del boton de inicio del flujo de triaje (sin emojis). */
 const ANALYZE_BUTTON_TEXT = 'Clasificar y Analizar';
-/** Input file oculto del DualCaptureHUD. */
-const HUD_FILE_INPUT = 'dual-hud-file-input';
 /** Boton de captura dentro del DualCaptureHUD. */
 const DUAL_HUD_CAPTURE_BUTTON = 'dual-hud-capture-button';
 /** Texto del titulo de exito (sin emojis). */
@@ -191,18 +189,19 @@ const SUCCESS_TITLE = 'Ver Reporte Completo';
 const SYNC_ERROR_TITLE = 'Error al sincronizar';
 
 /**
- * Simula la captura de una foto en el input file del DualCaptureHUD.
+ * Simula la captura de una foto en el DualCaptureHUD.
+ *
+ * Antes (legacy): manipulaba el input file del HUD. Ahora el HUD usa
+ * `CameraViewfinder` en vivo: el click en el boton de captura eleva el
+ * flag `captureRequested` que el mock de CameraViewfinder observa para
+ * auto-disparar `onCapture`. Solo esperamos al siguiente tick para que
+ * el `setTimeout(0)` del mock se ejecute.
  */
-function simularCaptura(fileName: string) {
-  const input = screen.getByTestId(HUD_FILE_INPUT) as HTMLInputElement;
-  const file = new File([new Blob(['fake'], { type: 'image/jpeg' })], fileName, {
-    type: 'image/jpeg',
-  });
-  Object.defineProperty(input, 'files', {
-    value: [file],
-    configurable: true,
-  });
+async function simularCaptura(_fileName: string) {
   fireEvent.click(screen.getByTestId(DUAL_HUD_CAPTURE_BUTTON));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
 }
 
 /**
@@ -212,12 +211,12 @@ function simularCaptura(fileName: string) {
  */
 async function completarDualCaptureFlow(pattern: string = 'diagonal_shear') {
   // Step 1: capturar detalle
-  simularCaptura('detail.jpg');
+  await simularCaptura('detail.jpg');
   await waitFor(() =>
     expect(screen.getByText(/Paso 2 de 2: Foto de Contexto/i)).toBeInTheDocument()
   );
   // Step 1 (cont.): capturar contexto
-  simularCaptura('context.jpg');
+  await simularCaptura('context.jpg');
   // Step 2: seleccionar patron
   await waitFor(() => expect(screen.getByText('2 / 4')).toBeInTheDocument());
   fireEvent.click(screen.getByTestId(`crack-pattern-${pattern}`));
@@ -334,11 +333,11 @@ describe('Capture Page — Full E2E Flow (DualCaptureFlow)', () => {
     await waitFor(() => expect(screen.getByText('1 / 4')).toBeInTheDocument());
 
     // Activar una senal critica para verificar que se envia
-    simularCaptura('detail.jpg');
+    await simularCaptura('detail.jpg');
     await waitFor(() =>
       expect(screen.getByText(/Paso 2 de 2: Foto de Contexto/i)).toBeInTheDocument()
     );
-    simularCaptura('context.jpg');
+    await simularCaptura('context.jpg');
     await waitFor(() => expect(screen.getByText('2 / 4')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('crack-pattern-spalling_corrosion'));
     fireEvent.click(screen.getByTestId('dual-flow-continue'));
@@ -378,11 +377,11 @@ describe('Capture Page — Full E2E Flow (DualCaptureFlow)', () => {
     await waitFor(() => expect(screen.getByText('1 / 4')).toBeInTheDocument());
 
     // Capturar + patron cosmetic + exposedRebarSpalling → override
-    simularCaptura('detail.jpg');
+    await simularCaptura('detail.jpg');
     await waitFor(() =>
       expect(screen.getByText(/Paso 2 de 2: Foto de Contexto/i)).toBeInTheDocument()
     );
-    simularCaptura('context.jpg');
+    await simularCaptura('context.jpg');
     await waitFor(() => expect(screen.getByText('2 / 4')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('crack-pattern-hairline_cosmetic'));
     fireEvent.click(screen.getByTestId('dual-flow-continue'));

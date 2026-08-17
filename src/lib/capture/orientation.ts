@@ -37,11 +37,22 @@ export async function getDeviceOrientation(): Promise<OrientationData> {
       resolved = true;
       window.removeEventListener('deviceorientation', handler);
 
+      const alpha = event.alpha ?? null;
+      const beta = event.beta ?? null;
+      const gamma = event.gamma ?? null;
+
+      // Si los tres ejes llegan null (caso tipico iOS sin permiso explicito
+      // o Android que no emite datos hasta el primer toque), marcamos el sensor
+      // como no disponible para que la UI no imprima "undefined°". Si al menos
+      // un eje trae un numero valido, conservamos los nulls individuales para
+      // que el render pueda mostrar una lectura parcial.
+      const hasAnyValue = alpha !== null || beta !== null || gamma !== null;
+
       resolve({
-        alpha: event.alpha ?? null,
-        beta: event.beta ?? null,
-        gamma: event.gamma ?? null,
-        available: true,
+        alpha,
+        beta,
+        gamma,
+        available: hasAnyValue,
       });
     };
 

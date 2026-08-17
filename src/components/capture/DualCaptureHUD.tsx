@@ -5,21 +5,29 @@
  * Orquesta dos pasos:
  *   - step="detail"  : Foto de detalle a 30-50 cm con referencia de
  *                      escala (moneda o tarjeta). Guia al usuario con
- *                      un cuadro de encuadre cercano.
+ *                      un cuadro de encuadre cercano superpuesto a la
+ *                      camara en vivo.
  *   - step="context" : Foto de contexto a ~2 metros. Encuadra columnas,
  *                      vigas y elementos estructurales del entorno.
  *                      Muestra thumbnail del step 1 para que el usuario
  *                      recuerde que ya capturo.
  *
- * El componente NO maneja el stream de camara — solo orquesta la
- * seleccion del archivo y la captura via un input file con `capture`
- * (mobile PWA). El caller (CapturePage) provee `step` segun su maquina
- * de estados interna y persiste el `inspectionReportId` a traves de
- * los dos pasos (R7).
+ * A diferencia del flujo antiguo, este componente SI renderiza la
+ * camara en vivo (`CameraViewfinder`) dentro del HUD. El usuario ve
+ * la misma camara en el flujo de captura simple y en el dual: una
+ * sola experiencia continua, sin necesidad de abrir la camara nativa
+ * del SO mediante `<input type="file" capture>`. Los recuadros
+ * `DetailFrame` / `ContextFrame` se dibujan como overlay encima del
+ * visor.
+ *
+ * El componente maneja internamente el trigger de captura
+ * (`captureRequested`) y el estado `isCapturing`. Cuando el usuario
+ * pulsa el boton de captura, el snapshot se dispara contra la camara
+ * en vivo y el blob resultante se propaga via `onCapture(blob, step)`.
  *
  * Cero emojis: SVG Lucide + tokens. ARIA live announcements para que
  * tecnologias asistivas anuncien el cambio de paso. Tap targets
- * >= 44px. Sin estado interno de captura.
+ * >= 44px.
  *
  * Ref: spec R5 (detail), R6 (context), R7 (inspectionReportId compartido).
  * Ref: design Slice 3 (Phase 3) de seismic-triage-upgrade.
@@ -27,7 +35,7 @@
 
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Camera,
   Coins,
@@ -35,6 +43,7 @@ import {
   RefreshCw,
   Square,
 } from 'lucide-react';
+import { CameraViewfinder } from './CameraViewfinder';
 
 /** Paso actual del flujo de captura dual. */
 export type DualCaptureStep = 'detail' | 'context';
@@ -57,36 +66,38 @@ const DEFAULT_ARIA_LABEL = 'Captura dual de fotos';
 
 /**
  * Marco de encuadre cercano (step=detail) con marcador de escala.
- * Renderizado como SVG para soportar tema oscuro y resize perfecto.
+ * Renderizado como overlay absoluto sobre el `CameraViewfinder`.
  */
 function DetailFrame() {
   return (
     <div
       data-testid="dual-hud-scale-box"
-      className="relative mx-auto h-48 w-48 rounded-2xl border-2 border-dashed border-triage-monitoring sm:h-56 sm:w-56"
+      className="pointer-events-none absolute inset-3 sm:inset-4 flex items-center justify-center"
     >
-      {/* Esquinas resaltadas */}
-      <span
-        aria-hidden="true"
-        className="absolute -top-1 -left-1 h-4 w-4 border-t-2 border-l-2 border-triage-monitoring-fg"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute -top-1 -right-1 h-4 w-4 border-t-2 border-r-2 border-triage-monitoring-fg"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-triage-monitoring-fg"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-triage-monitoring-fg"
-      />
-      {/* Texto guia interno */}
-      <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs font-medium text-triage-monitoring-fg sm:text-sm">
-        <Coins className="mr-1 inline-block h-4 w-4" aria-hidden="true" />
-        Coloca una moneda o tarjeta al lado de la grieta
-      </span>
+      <div className="relative aspect-square w-full max-w-[80%] max-h-[80%] rounded-2xl border-2 border-dashed border-triage-monitoring">
+        {/* Esquinas resaltadas */}
+        <span
+          aria-hidden="true"
+          className="absolute -top-1 -left-1 h-4 w-4 border-t-2 border-l-2 border-triage-monitoring-fg"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute -top-1 -right-1 h-4 w-4 border-t-2 border-r-2 border-triage-monitoring-fg"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-triage-monitoring-fg"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-triage-monitoring-fg"
+        />
+        {/* Texto guia sobre banda semitransparente para no bloquear la grieta */}
+        <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[90%] items-center justify-center gap-1 rounded-md bg-black/65 px-2 py-1 text-center text-[11px] font-medium text-triage-monitoring-fg sm:text-xs">
+          <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Coloca una moneda o tarjeta al lado de la grieta</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -99,28 +110,30 @@ function ContextFrame() {
   return (
     <div
       data-testid="dual-hud-context-frame"
-      className="relative mx-auto h-48 w-64 rounded-2xl border-2 border-dashed border-triage-habitable sm:h-56 sm:w-80"
+      className="pointer-events-none absolute inset-3 sm:inset-4 flex items-center justify-center"
     >
-      <span
-        aria-hidden="true"
-        className="absolute -top-1 -left-1 h-4 w-4 border-t-2 border-l-2 border-triage-habitable-fg"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute -top-1 -right-1 h-4 w-4 border-t-2 border-r-2 border-triage-habitable-fg"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-triage-habitable-fg"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-triage-habitable-fg"
-      />
-      <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs font-medium text-triage-habitable-fg sm:text-sm">
-        <Maximize2 className="mr-1 inline-block h-4 w-4" aria-hidden="true" />
-        Enmarca columnas y vigas del entorno
-      </span>
+      <div className="relative aspect-video w-full max-w-[90%] max-h-[85%] rounded-2xl border-2 border-dashed border-triage-habitable">
+        <span
+          aria-hidden="true"
+          className="absolute -top-1 -left-1 h-4 w-4 border-t-2 border-l-2 border-triage-habitable-fg"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute -top-1 -right-1 h-4 w-4 border-t-2 border-r-2 border-triage-habitable-fg"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-triage-habitable-fg"
+        />
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-triage-habitable-fg"
+        />
+        <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[90%] items-center justify-center gap-1 rounded-md bg-black/65 px-2 py-1 text-center text-[11px] font-medium text-triage-habitable-fg sm:text-xs">
+          <Maximize2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Enmarca columnas y vigas del entorno</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -151,10 +164,13 @@ function Step1Thumbnail({ src }: { src: string }) {
 /**
  * DualCaptureHUD — Componente publico.
  *
- * Mantiene un ref al input file para resolver el blob seleccionado en
- * click del boton de captura (sin pasar por un estado que cambie cada
- * tipeo). Es intencionalmente presentacional: la maquina de pasos vive
- * en el caller.
+ * Mantiene internamente:
+ *   - `captureRequested`: flag que se eleva a `true` cuando el usuario
+ *     pulsa el boton de captura, y vuelve a `false` cuando
+ *     `CameraViewfinder` confirma el snapshot (via `onCaptureComplete`).
+ *   - `isCapturing`: estado intermedio entre el click y la propagacion
+ *     del blob a `onCapture`, usado para deshabilitar el boton mientras
+ *     se procesa la captura y evitar dobles disparos.
  */
 export function DualCaptureHUD({
   step,
@@ -163,21 +179,30 @@ export function DualCaptureHUD({
   onRetakeStep1,
   className = '',
 }: DualCaptureHUDProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [captureRequested, setCaptureRequested] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const handleCaptureClick = useCallback(() => {
-    const input = fileInputRef.current;
-    if (!input) return;
-    const file = input.files?.[0];
-    if (!file) return;
-    onCapture(file, step);
-    // Reset para permitir recapturar el mismo archivo
-    input.value = '';
-  }, [onCapture, step]);
+    if (isCapturing) return;
+    setIsCapturing(true);
+    setCaptureRequested(true);
+  }, [isCapturing]);
 
-  const handleFileChange = useCallback(() => {
-    // El cambio de archivo por si solo no captura — espera al boton.
-    // Esto permite al usuario re-seleccionar antes de confirmar.
+  const handleCameraCapture = useCallback(
+    (blob: Blob) => {
+      onCapture(blob, step);
+    },
+    [onCapture, step]
+  );
+
+  const handleCameraCaptureComplete = useCallback(() => {
+    setCaptureRequested(false);
+    setIsCapturing(false);
+  }, []);
+
+  const handleCameraError = useCallback((message: string | null) => {
+    setCameraError(message);
   }, []);
 
   const isContext = step === 'context';
@@ -224,8 +249,27 @@ export function DualCaptureHUD({
         />
       </header>
 
-      {/* Marco visual segun paso */}
-      {isContext ? <ContextFrame /> : <DetailFrame />}
+      {/* Visor de camara en vivo con overlay del marco segun paso */}
+      <div
+        data-testid="dual-hud-camera"
+        className="relative w-full"
+      >
+        <CameraViewfinder
+          captureRequested={captureRequested}
+          onCapture={handleCameraCapture}
+          onCaptureComplete={handleCameraCaptureComplete}
+          onError={handleCameraError}
+        />
+        {isContext ? <ContextFrame /> : <DetailFrame />}
+        {cameraError && (
+          <p
+            role="alert"
+            className="mt-2 text-center text-xs text-status-critical-fg"
+          >
+            {cameraError}
+          </p>
+        )}
+      </div>
 
       {/* Texto guia descriptivo */}
       <p className="text-sm leading-snug text-text-secondary">
@@ -239,28 +283,17 @@ export function DualCaptureHUD({
         <Step1Thumbnail src={detailPreviewUrl} />
       )}
 
-      {/* Input file oculto + boton de captura */}
-      <input
-        ref={fileInputRef}
-        data-testid="dual-hud-file-input"
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFileChange}
-        className="sr-only"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
-
+      {/* Botones de accion */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
           type="button"
           data-testid="dual-hud-capture-button"
           onClick={handleCaptureClick}
+          disabled={isCapturing}
           aria-label={
             isContext ? 'Capturar foto de contexto' : 'Capturar foto de detalle'
           }
-          className="flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-triage-monitoring-border bg-triage-monitoring px-4 py-3 text-sm font-semibold text-triage-monitoring-fg shadow-sm transition-all duration-150 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-triage-monitoring-border focus:ring-offset-2 focus:ring-offset-surface-0"
+          className="flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-triage-monitoring-border bg-triage-monitoring px-4 py-3 text-sm font-semibold text-triage-monitoring-fg shadow-sm transition-all duration-150 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-triage-monitoring-border focus:ring-offset-2 focus:ring-offset-surface-0 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Square className="h-5 w-5" aria-hidden="true" focusable="false" />
           <span>{isContext ? 'Capturar contexto' : 'Capturar detalle'}</span>

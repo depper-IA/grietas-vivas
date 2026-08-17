@@ -23,12 +23,36 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react';
 import { DualCaptureFlow } from './DualCaptureFlow';
 import type {
   CrackPattern,
   DangerSignals,
 } from '@/lib/validation/crackTaxonomy';
+
+// Mock de CameraViewfinder. Auto-fira `onCapture` cuando recibe
+// `captureRequested=true` (mismo patron que usa el integration test del
+// capture page). Esto permite testear DualCaptureFlow sin instanciar
+// el getUserMedia real del navegador.
+vi.mock('@/components/capture/CameraViewfinder', () => ({
+  CameraViewfinder: ({
+    captureRequested,
+    onCapture,
+    onCaptureComplete,
+  }: {
+    captureRequested?: boolean;
+    onCapture?: (blob: Blob) => void;
+    onCaptureComplete?: () => void;
+  }) => {
+    if (captureRequested && onCapture) {
+      setTimeout(() => {
+        onCapture(new Blob(['mock-frame-bytes'], { type: 'image/jpeg' }));
+        onCaptureComplete?.();
+      }, 0);
+    }
+    return <div data-testid="camera-viewfinder" />;
+  },
+}));
 
 /** Regex de emoji equivalente al usado en otros tests del proyecto. */
 const EMOJI_REGEX =
@@ -41,22 +65,25 @@ const FAKE_BLOB_CONTEXT = new Blob(['context-bytes'], { type: 'image/jpeg' });
 const HUD_CAPTURE_BUTTON = 'dual-hud-capture-button';
 /** Ruta esperada del boton "Retomar foto 1" en step context. */
 const HUD_RETAKE_BUTTON = 'dual-hud-retake-step1';
-/** Ruta del input file oculto del DualCaptureHUD. */
-const HUD_FILE_INPUT = 'dual-hud-file-input';
 
 /**
- * Simula la seleccion de un archivo en el input file oculto del
- * DualCaptureHUD y dispara el handler de captura. El componente espera
- * un File en input.files[0] antes de invocar onCapture(blob, step).
+ * Simula la captura de una foto: dispara el click en el boton de
+ * captura del DualCaptureHUD, que internamente eleva el flag
+ * `captureRequested` de la `CameraViewfinder`. El mock de
+ * `CameraViewfinder` (definido arriba) escucha ese flag y emite
+ * `onCapture(blob)` con un blob arbitrario, que DualCaptureHUD
+ * transforma en `onCapture(blob, step)`.
+ *
+ * Nota: el callback debe ser awaited en los tests (es async) para
+ * permitir que el `setTimeout(0)` del mock complete antes de continuar.
  */
-function simularCaptura(blob: Blob, fileName: string) {
-  const input = screen.getByTestId(HUD_FILE_INPUT) as HTMLInputElement;
-  const file = new File([blob], fileName, { type: 'image/jpeg' });
-  Object.defineProperty(input, 'files', {
-    value: [file],
-    configurable: true,
-  });
+async function simularCaptura(_blob: Blob, _fileName: string) {
   fireEvent.click(screen.getByTestId(HUD_CAPTURE_BUTTON));
+  // Espera a que el setTimeout(0) del mock dispare onCapture y React
+  // propague las actualizaciones resultantes.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
 }
 
 /**
@@ -119,27 +146,27 @@ describe('DualCaptureFlow', () => {
       ).toBeInTheDocument();
     });
 
-    it('capturar detalle avanza al step="context" del DualCaptureHUD', () => {
+    it('capturar detalle avanza al step="context" del DualCaptureHUD', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
       // Ahora debe verse el titulo del step 2
       expect(
         screen.getByText(/Paso 2 de 2: Foto de Contexto/i)
       ).toBeInTheDocument();
     });
 
-    it('capturar contexto avanza al step 2 del flow (selector de patron)', () => {
+    it('capturar contexto avanza al step 2 del flow (selector de patron)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
       // Ahora en context
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
       // Indicador de paso global debe ser 2 / 4
       expect(screen.getByText('2 / 4')).toBeInTheDocument();
     });
 
-    it('"Retomar foto 1" en contexto regresa a detail y permite re-capturar', () => {
+    it('"Retomar foto 1" en contexto regresa a detail y permite re-capturar', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
       // Detail capturada, ahora en context
       fireEvent.click(screen.getByTestId(HUD_RETAKE_BUTTON));
       // De vuelta en detail; el titulo del step 1 debe volver a aparecer
@@ -156,51 +183,51 @@ describe('DualCaptureFlow', () => {
   });
 
   describe('step 2: selector de patron (CrackPatternSelector)', () => {
-    function avanzarASelectorPatron() {
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+    async function avanzarASelectorPatron() {
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
     }
 
-    it('muestra el CrackPatternSelector con 10 opciones', () => {
+    it('muestra el CrackPatternSelector con 10 opciones', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarASelectorPatron();
+      await avanzarASelectorPatron();
       const radios = screen.getAllByRole('radio');
       expect(radios.length).toBe(10);
     });
 
-    it('boton "Continuar" esta deshabilitado hasta seleccionar patron', () => {
+    it('boton "Continuar" esta deshabilitado hasta seleccionar patron', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarASelectorPatron();
+      await avanzarASelectorPatron();
       const cont = screen.getByTestId('dual-flow-continue');
       expect(cont).toBeDisabled();
     });
 
-    it('seleccionar patron habilita el boton "Continuar"', () => {
+    it('seleccionar patron habilita el boton "Continuar"', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarASelectorPatron();
+      await avanzarASelectorPatron();
       fireEvent.click(screen.getByTestId('crack-pattern-diagonal_shear'));
       const cont = screen.getByTestId('dual-flow-continue');
       expect(cont).not.toBeDisabled();
     });
 
-    it('click en "Continuar" avanza al step 3 (checklist)', () => {
+    it('click en "Continuar" avanza al step 3 (checklist)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarASelectorPatron();
+      await avanzarASelectorPatron();
       fireEvent.click(screen.getByTestId('crack-pattern-diagonal_shear'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
       expect(screen.getByText('3 / 4')).toBeInTheDocument();
     });
 
-    it('boton "Atras" regresa al step 1 (captura)', () => {
+    it('boton "Atras" regresa al step 1 (captura)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarASelectorPatron();
+      await avanzarASelectorPatron();
       fireEvent.click(screen.getByTestId('dual-flow-back'));
       expect(screen.getByText('1 / 4')).toBeInTheDocument();
     });
 
-    it('al regresar al step 1 conserva la foto de detalle (se re-muestra)', () => {
+    it('al regresar al step 1 conserva la foto de detalle (se re-muestra)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
       // Vuelve a detail
       fireEvent.click(screen.getByTestId(HUD_RETAKE_BUTTON));
       // El flujo ahora debe estar en el step 1 otra vez
@@ -209,79 +236,79 @@ describe('DualCaptureFlow', () => {
   });
 
   describe('step 3: checklist de senales (DangerSignalsChecklist)', () => {
-    function avanzarAChecklist() {
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+    async function avanzarAChecklist() {
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
       fireEvent.click(screen.getByTestId('crack-pattern-diagonal_shear'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
     }
 
-    it('muestra el DangerSignalsChecklist con 5 toggles', () => {
+    it('muestra el DangerSignalsChecklist con 5 toggles', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAChecklist();
+      await avanzarAChecklist();
       const toggles = screen.getAllByRole('checkbox');
       expect(toggles.length).toBe(5);
     });
 
-    it('boton "Continuar" esta habilitado por defecto (signals opcionales)', () => {
+    it('boton "Continuar" esta habilitado por defecto (signals opcionales)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAChecklist();
+      await avanzarAChecklist();
       const cont = screen.getByTestId('dual-flow-continue');
       expect(cont).not.toBeDisabled();
     });
 
-    it('click en "Continuar" avanza al step 4 (resumen)', () => {
+    it('click en "Continuar" avanza al step 4 (resumen)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAChecklist();
+      await avanzarAChecklist();
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
       expect(screen.getByText('4 / 4')).toBeInTheDocument();
     });
 
-    it('mostrar critical banner al activar exposedRebarSpalling', () => {
+    it('mostrar critical banner al activar exposedRebarSpalling', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAChecklist();
+      await avanzarAChecklist();
       fireEvent.click(screen.getByTestId('danger-signal-exposedRebarSpalling'));
       expect(
         screen.getByText(/Peligro Estructural Detectado/i)
       ).toBeInTheDocument();
     });
 
-    it('boton "Atras" regresa al step 2 (selector de patron)', () => {
+    it('boton "Atras" regresa al step 2 (selector de patron)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAChecklist();
+      await avanzarAChecklist();
       fireEvent.click(screen.getByTestId('dual-flow-back'));
       expect(screen.getByText('2 / 4')).toBeInTheDocument();
     });
   });
 
   describe('step 4: resumen y submit', () => {
-    function avanzarAResumen() {
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+    async function avanzarAResumen() {
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
       fireEvent.click(screen.getByTestId('crack-pattern-diagonal_shear'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
     }
 
-    it('muestra el resumen del patron seleccionado', () => {
+    it('muestra el resumen del patron seleccionado', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAResumen();
+      await avanzarAResumen();
       // En el resumen debe aparecer el titulo del patron
       expect(screen.getByText(/Corte Diagonal/i)).toBeInTheDocument();
     });
 
-    it('muestra el resumen del label espanol del patron', () => {
+    it('muestra el resumen del label espanol del patron', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAResumen();
+      await avanzarAResumen();
       const summary = screen.getByTestId('dual-flow-summary');
       expect(summary.textContent).toMatch(/Corte Diagonal/i);
     });
 
-    it('muestra contador de senales activas en el resumen', () => {
+    it('muestra contador de senales activas en el resumen', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
       // Capturar fotos y seleccionar patron
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
       fireEvent.click(screen.getByTestId('crack-pattern-structural_beam_column'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
       // Activar 2 senales
@@ -295,7 +322,7 @@ describe('DualCaptureFlow', () => {
     it('boton "Confirmar y Analizar" invoca onComplete con todos los datos', async () => {
       const onComplete = vi.fn();
       render(<DualCaptureFlow onComplete={onComplete} />);
-      avanzarAResumen();
+      await avanzarAResumen();
       fireEvent.click(screen.getByTestId('dual-flow-submit'));
 
       await waitFor(() => {
@@ -317,8 +344,8 @@ describe('DualCaptureFlow', () => {
     it('onComplete incluye todas las senales activas seleccionadas', async () => {
       const onComplete = vi.fn();
       render(<DualCaptureFlow onComplete={onComplete} />);
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
       fireEvent.click(screen.getByTestId('crack-pattern-spalling_corrosion'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
       fireEvent.click(screen.getByTestId('danger-signal-exposedRebarSpalling'));
@@ -336,9 +363,9 @@ describe('DualCaptureFlow', () => {
       expect(payload.dangerSignals.throughWallXCracks).toBe(true);
     });
 
-    it('boton "Atras" regresa al step 3 (checklist)', () => {
+    it('boton "Atras" regresa al step 3 (checklist)', async () => {
       render(<DualCaptureFlow onComplete={() => {}} />);
-      avanzarAResumen();
+      await avanzarAResumen();
       fireEvent.click(screen.getByTestId('dual-flow-back'));
       expect(screen.getByText('3 / 4')).toBeInTheDocument();
     });
@@ -359,10 +386,10 @@ describe('DualCaptureFlow', () => {
   });
 
   describe('invariante: cero emojis en todos los pasos', () => {
-    it('HTML renderizado sin emojis incluso con senales criticas activas', () => {
+    it('HTML renderizado sin emojis incluso con senales criticas activas', async () => {
       const { container } = render(<DualCaptureFlow onComplete={() => {}} />);
-      simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
-      simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
+      await simularCaptura(FAKE_BLOB_DETAIL, 'detail.jpg');
+      await simularCaptura(FAKE_BLOB_CONTEXT, 'context.jpg');
       fireEvent.click(screen.getByTestId('crack-pattern-spalling_corrosion'));
       fireEvent.click(screen.getByTestId('dual-flow-continue'));
       fireEvent.click(screen.getByTestId('danger-signal-exposedRebarSpalling'));
@@ -370,4 +397,7 @@ describe('DualCaptureFlow', () => {
       expect(container.innerHTML).not.toMatch(EMOJI_REGEX);
     });
   });
+
+  // Conserva referencias para que los bundlers no marquen como unused
+  void makeObjectUrlStub;
 });

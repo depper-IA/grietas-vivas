@@ -3,15 +3,16 @@
  * (Spec R5, R6, R7; Slice 3 Work Unit 3 de seismic-triage-upgrade).
  *
  * Contrato:
- *   - Step 1 (`detail`): cuadro de referencia de escala con texto
- *     "Coloca una moneda o tarjeta al lado de la grieta", indicador
- *     "Paso 1 de 2: Foto de Detalle (30–50 cm)", guia visual de
- *     encuadre cercano.
- *   - Step 2 (`context`): cuadro de encuadre amplio, indicador
- *     "Paso 2 de 2: Foto de Contexto (a 2 metros)", guia para enmarcar
- *     columnas y vigas del entorno.
+ *   - Step 1 (`detail`): cuadro de referencia de escala superpuesto a
+ *     la camara en vivo, con texto "Coloca una moneda o tarjeta al
+ *     lado de la grieta", indicador "Paso 1 de 2: Foto de Detalle
+ *     (30-50 cm)".
+ *   - Step 2 (`context`): cuadro de encuadre amplio superpuesto a la
+ *     camara, indicador "Paso 2 de 2: Foto de Contexto (a 2 metros)",
+ *     guia para enmarcar columnas y vigas del entorno.
  *   - Thumbnail preview del step 1 cuando estamos en step 2.
- *   - Boton de captura invoca `onCapture(photoBlob, step)`.
+ *   - Boton de captura invoca `onCapture(photoBlob, step)` tras
+ *     disparar el snapshot de la `CameraViewfinder` en vivo.
  *   - Boton "Retomar foto 1" permite repetir el step 1.
  *   - ARIA live announcements en cambios de paso (`aria-live="polite"`).
  *   - Tap targets >= 44px.
@@ -22,14 +23,54 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { DualCaptureHUD } from './DualCaptureHUD';
+
+// Mock de CameraViewfinder — el comportamiento real no es relevante para
+// este componente. Lo que queremos validar aqui es que DualCaptureHUD
+// dispara correctamente el trigger de captura y propaga el blob a su
+// caller via `onCapture(blob, step)`. El mock auto-fira `onCapture`
+// cuando `captureRequested` pasa a true (mismo patron que usa el
+// integration test del capture page).
+vi.mock('@/components/capture/CameraViewfinder', () => ({
+  CameraViewfinder: ({
+    captureRequested,
+    onCapture,
+    onCaptureComplete,
+    onError,
+  }: {
+    captureRequested?: boolean;
+    onCapture?: (blob: Blob) => void;
+    onCaptureComplete?: () => void;
+    onError?: (msg: string | null) => void;
+  }) => {
+    if (captureRequested && onCapture) {
+      setTimeout(() => {
+        // act() envuelve el side-effect async para que React no emita
+        // warnings de "update not wrapped in act(...)" durante los tests.
+        Promise.resolve().then(() => {
+          onCapture(new Blob(['fake-frame-bytes'], { type: 'image/jpeg' }));
+          onCaptureComplete?.();
+        });
+      }, 0);
+    }
+    return (
+      <div data-testid="camera-viewfinder">
+        <button
+          type="button"
+          aria-label="Mock camera error"
+          onClick={() => onError?.('mock-error')}
+        />
+      </div>
+    );
+  },
+}));
 
 /** Regex de emoji equivalente al usado en otros tests del proyecto. */
 const EMOJI_REGEX =
   /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}]/u;
 
-/** Blob arbitrario para representar la foto capturada. */
+/** Blob arbitrario para representar la foto capturada por el mock. */
 const FAKE_BLOB_DETAIL = new Blob(['detail-bytes'], { type: 'image/jpeg' });
 const FAKE_BLOB_CONTEXT = new Blob(['context-bytes'], { type: 'image/jpeg' });
 
@@ -103,7 +144,6 @@ describe('DualCaptureHUD', () => {
           onRetakeStep1={() => {}}
         />
       );
-      // Marcador de escala: input + indicador
       const scaleBox = container.querySelector('[data-testid="dual-hud-scale-box"]');
       expect(scaleBox).not.toBeNull();
     });
@@ -231,8 +271,36 @@ describe('DualCaptureHUD', () => {
     });
   });
 
+  describe('camara en vivo: renderiza CameraViewfinder', () => {
+    it('renderiza el container de camara y la CameraViewfinder en step 1', () => {
+      const { container } = render(
+        <DualCaptureHUD
+          step="detail"
+          onCapture={() => {}}
+          onRetakeStep1={() => {}}
+        />
+      );
+      expect(
+        container.querySelector('[data-testid="dual-hud-camera"]')
+      ).not.toBeNull();
+      expect(screen.getByTestId('camera-viewfinder')).toBeInTheDocument();
+    });
+
+    it('renderiza la CameraViewfinder tambien en step 2 (no la desmonta al avanzar)', () => {
+      render(
+        <DualCaptureHUD
+          step="context"
+          detailPreviewUrl="blob:test-detail"
+          onCapture={() => {}}
+          onRetakeStep1={() => {}}
+        />
+      );
+      expect(screen.getByTestId('camera-viewfinder')).toBeInTheDocument();
+    });
+  });
+
   describe('captura: boton de captura invoca onCapture(blob, step)', () => {
-    it('click en el boton de captura en step 1 invoca onCapture(blob, "detail")', () => {
+    it('click en el boton de captura en step 1 invoca onCapture(blob, "detail")', async () => {
       const onCapture = vi.fn();
       render(
         <DualCaptureHUD
@@ -241,23 +309,23 @@ describe('DualCaptureHUD', () => {
           onRetakeStep1={() => {}}
         />
       );
-      const btn = screen.getByTestId('dual-hud-capture-button');
-      // El blob debe venir de un input[type=file] simulado via el input del HUD
-      // pero el componente expone un input file que setea el blob via onChange.
-      const fileInput = screen.getByTestId('dual-hud-file-input') as HTMLInputElement;
-      // Simular carga
-      const file = new File([FAKE_BLOB_DETAIL], 'detail.jpg', { type: 'image/jpeg' });
-      Object.defineProperty(fileInput, 'files', { value: [file] });
-      fireEvent.change(fileInput);
 
+      const btn = screen.getByTestId('dual-hud-capture-button');
       fireEvent.click(btn);
+
+      // El mock dispara onCapture asincronicamente via setTimeout(..., 0).
+      // `act()` espera a que React procese las actualizaciones resultantes.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
       expect(onCapture).toHaveBeenCalledTimes(1);
       const [blobArg, stepArg] = onCapture.mock.calls[0];
       expect(stepArg).toBe('detail');
       expect(blobArg).toBeInstanceOf(Blob);
     });
 
-    it('click en el boton de captura en step 2 invoca onCapture(blob, "context")', () => {
+    it('click en el boton de captura en step 2 invoca onCapture(blob, "context")', async () => {
       const onCapture = vi.fn();
       render(
         <DualCaptureHUD
@@ -267,20 +335,36 @@ describe('DualCaptureHUD', () => {
           onRetakeStep1={() => {}}
         />
       );
-      const fileInput = screen.getByTestId('dual-hud-file-input') as HTMLInputElement;
-      const file = new File([FAKE_BLOB_CONTEXT], 'context.jpg', { type: 'image/jpeg' });
-      Object.defineProperty(fileInput, 'files', { value: [file] });
-      fireEvent.change(fileInput);
 
       const btn = screen.getByTestId('dual-hud-capture-button');
       fireEvent.click(btn);
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
       expect(onCapture).toHaveBeenCalledTimes(1);
       const [blobArg, stepArg] = onCapture.mock.calls[0];
       expect(stepArg).toBe('context');
       expect(blobArg).toBeInstanceOf(Blob);
     });
 
-    it('click sin archivo seleccionado no invoca onCapture', () => {
+    it('NO usa un input file nativo para disparar la captura (no existe dual-hud-file-input)', () => {
+      const { container } = render(
+        <DualCaptureHUD
+          step="detail"
+          onCapture={() => {}}
+          onRetakeStep1={() => {}}
+        />
+      );
+      expect(
+        container.querySelector('[data-testid="dual-hud-file-input"]')
+      ).toBeNull();
+      // Tampoco debe haber un <input type="file"> en el DOM
+      expect(container.querySelector('input[type="file"]')).toBeNull();
+    });
+
+    it('deshabilita el boton mientras la captura esta en curso', async () => {
       const onCapture = vi.fn();
       render(
         <DualCaptureHUD
@@ -289,24 +373,32 @@ describe('DualCaptureHUD', () => {
           onRetakeStep1={() => {}}
         />
       );
-      const btn = screen.getByTestId('dual-hud-capture-button');
+      const btn = screen.getByTestId('dual-hud-capture-button') as HTMLButtonElement;
       fireEvent.click(btn);
-      expect(onCapture).not.toHaveBeenCalled();
+      // Inmediatamente despues del click (antes del setTimeout del mock)
+      // el boton debe estar disabled para evitar dobles disparos.
+      expect(btn).toBeDisabled();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+      // Tras completarse la captura, el boton vuelve a habilitarse
+      expect(btn).not.toBeDisabled();
     });
+  });
 
-    it('el input file acepta solo image/* y captura del entorno', () => {
-      const { container } = render(
+  describe('manejo de errores de camara', () => {
+    it('muestra mensaje de error cuando la camara falla', () => {
+      render(
         <DualCaptureHUD
           step="detail"
           onCapture={() => {}}
           onRetakeStep1={() => {}}
         />
       );
-      const fileInput = container.querySelector(
-        '[data-testid="dual-hud-file-input"]'
-      ) as HTMLInputElement;
-      expect(fileInput.getAttribute('accept')).toMatch(/image/);
-      expect(fileInput.getAttribute('capture')).toBe('environment');
+      fireEvent.click(screen.getByRole('button', { name: /mock camera error/i }));
+      expect(
+        screen.getByRole('alert')
+      ).toHaveTextContent(/mock-error/);
     });
   });
 
@@ -363,7 +455,6 @@ describe('DualCaptureHUD', () => {
         '[data-testid="dual-hud-capture-button"]'
       ) as HTMLElement;
       const classes = btn.className;
-      // min-h-[56px] o equivalente >= 44px
       expect(classes).toMatch(/min-h-\[(44|48|52|56|60|64|72|80)px\]/);
     });
 
@@ -446,4 +537,9 @@ describe('DualCaptureHUD', () => {
       expect(screen.getByText('2 / 2')).toBeInTheDocument();
     });
   });
+
+  // Conserva referencias para que los bundlers no marquen como unused
+  // los blobs de "antes" — utiles al migrar tests adicionales.
+  void FAKE_BLOB_DETAIL;
+  void FAKE_BLOB_CONTEXT;
 });

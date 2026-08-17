@@ -11,6 +11,9 @@ export interface CameraViewfinderProps {
   onCaptureComplete?: () => void;
   /** Estado del torch (linterna). Cuando cambia, se aplica al track de video si el navegador lo soporta. */
   torchOn?: boolean;
+  /** Callback opcional cuando la camara falla (permite a los callers
+   *  mostrar el mensaje en su propio layout sin reemplazar el visor). */
+  onError?: (message: string | null) => void;
 }
 
 /**
@@ -24,12 +27,21 @@ export function CameraViewfinder({
   captureRequested,
   onCaptureComplete,
   torchOn = false,
+  onError,
 }: CameraViewfinderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+
+  // Notifica al padre cuando cambia el error para que pueda mostrarlo
+  // en su propio layout (importante cuando el visor se oculta detras
+  // de un overlay, como dentro del DualCaptureHUD).
+  useEffect(() => {
+    onError?.(error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   // Start camera stream
   useEffect(() => {

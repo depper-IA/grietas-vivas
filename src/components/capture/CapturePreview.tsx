@@ -54,12 +54,17 @@ export function CapturePreview({
           <MetadataRow
             icon={<Compass className="h-4 w-4 text-brand-accent shrink-0" aria-hidden="true" />}
             label="Orientación"
-            value={
-              metadata.orientation.available
-                ? `α:${metadata.orientation.alpha?.toFixed(0)}° β:${metadata.orientation.beta?.toFixed(0)}° γ:${metadata.orientation.gamma?.toFixed(0)}°`
-                : 'No disponible'
+            value={formatOrientationValue(metadata.orientation)}
+            status={
+              metadata.orientation.available &&
+              metadata.orientation.alpha !== null &&
+              metadata.orientation.beta !== null &&
+              metadata.orientation.gamma !== null
+                ? 'good'
+                : metadata.orientation.available
+                  ? 'warn'
+                  : 'neutral'
             }
-            status={metadata.orientation.available ? 'good' : 'neutral'}
           />
 
           <MetadataRow
@@ -95,6 +100,37 @@ export function CapturePreview({
 }
 
 type RowStatus = 'good' | 'warn' | 'error' | 'neutral';
+
+/**
+ * Formatea la lectura de orientacion del dispositivo para el resumen
+ * de captura. Maneja tres casos:
+ *   - Sensor no disponible o todos los ejes null -> "No disponible".
+ *   - Al menos un eje con valor pero no los tres -> "Parcial: ..." con
+ *     solo los ejes disponibles (evita imprimir "undefined°").
+ *   - Tres ejes disponibles -> cadena completa con un decimal.
+ */
+function formatOrientationValue(
+  orientation: CaptureMetadata['orientation']
+): string {
+  const { alpha, beta, gamma, available } = orientation;
+
+  if (!available) return 'No disponible';
+
+  const hasAlpha = alpha !== null;
+  const hasBeta = beta !== null;
+  const hasGamma = gamma !== null;
+  const hasAll = hasAlpha && hasBeta && hasGamma;
+
+  if (!hasAll) {
+    const parts: string[] = [];
+    if (hasAlpha) parts.push(`α:${alpha!.toFixed(0)}°`);
+    if (hasBeta) parts.push(`β:${beta!.toFixed(0)}°`);
+    if (hasGamma) parts.push(`γ:${gamma!.toFixed(0)}°`);
+    return `Parcial: ${parts.join(' ')}`;
+  }
+
+  return `α:${alpha!.toFixed(0)}° β:${beta!.toFixed(0)}° γ:${gamma!.toFixed(0)}°`;
+}
 
 function MetadataRow({
   icon,
