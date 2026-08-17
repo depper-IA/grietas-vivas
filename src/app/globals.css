@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Sistema de tokens semanticos (dark-first).
+ * Source of truth: src/lib/ui/tokens.ts (testeado con WCAG AAA 7:1).
+ * Este archivo es el mirror en CSS custom properties para que Tailwind
+ * pueda resolver var(--surface-1) en utility classes y para permitir
+ * override en runtime via @media queries (prefers-contrast, etc).
+ */
+:root {
+  /* Fondo y texto base */
+  --background: #0b1220;
+  --foreground: #f5f7fa;
+
+  /* Superficies (dark-first) */
+  --surface-0: #0b1220;
+  --surface-1: #0f1726;
+  --surface-2: #162033;
+  --surface-3: #1d2a44;
+
+  /* Bordes */
+  --border-subtle: #1d2a44;
+  --border-default: #2a3a5a;
+  --border-strong: #4a5a7a;
+
+  /* Texto (todos alcanzan >= 7:1 contra surface-0/1) */
+  --text-primary: #f5f7fa;
+  --text-secondary: #c8d1de;
+  --text-muted: #9ba6b6;
+
+  /* Marca */
+  --brand-accent: #38bdf8;
+
+  /* Severidad (badges): ver src/lib/ui/tokens.ts REQUIRED_SEVERITY_PAIRS */
+  --status-minor-bg: #16a34a;
+  --status-minor-fg: #052e16;
+  --status-minor-border: #14532d;
+
+  --status-moderate-bg: #ca8a04;
+  --status-moderate-fg: #422006;
+  --status-moderate-border: #78350f;
+
+  --status-critical-bg: #b91c1c;
+  --status-critical-fg: #fef2f2;
+  --status-critical-border: #7f1d1d;
+
+  /*
+   * Banner de triage (Spec R8 - seismic-triage-upgrade).
+   * Cuatro niveles: habitable (verde) / monitoring (ambar) /
+   * unsafe (naranja) / evacuate (rojo).
+   * Pares bg/fg verificados WCAG AA >= 4.5:1 (REQUIRED_TRIAGE_PAIRS).
+   */
+  --triage-habitable-bg: #15803d;
+  --triage-habitable-fg: #f0fdf4;
+  --triage-habitable-border: #14532d;
+
+  --triage-monitoring-bg: #a16207;
+  --triage-monitoring-fg: #fef9c3;
+  --triage-monitoring-border: #713f12;
+
+  --triage-unsafe-bg: #c2410c;
+  --triage-unsafe-fg: #ffedd5;
+  --triage-unsafe-border: #7c2d12;
+
+  --triage-evacuate-bg: #991b1b;
+  --triage-evacuate-fg: #fee2e2;
+  --triage-evacuate-border: #7f1d1d;
+}
+
+/*
+ * High-contrast outdoor mode.
+ * Operadores en campo (sol fuerte, pantalla mojada, guantes) necesitan
+ * bordes mas visibles y texto casi puro blanco. Activa via toggle de
+ * accesibilidad del SO o por deteccion automatica.
+ */
+@media (prefers-contrast: more) {
+  :root {
+    --background: #000000;
+    --foreground: #ffffff;
+
+    --surface-0: #000000;
+    --surface-1: #050a14;
+    --surface-2: #0b1220;
+    --surface-3: #11202e;
+
+    --border-subtle: #2a3a5a;
+    --border-default: #4a5a7a;
+    --border-strong: #94a3b8;
+
+    --text-primary: #ffffff;
+    --text-secondary: #e5ebf3;
+    --text-muted: #b8c4d4;
+  }
+}
+
+/*
+ * Reduced motion: todas las transiciones y animaciones se anulan.
+ * Garantiza accesibilidad WCAG 2.3.3 (Animation from Interactions).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Utilidades PWA Mobile y tabular numerals.
+ */
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .touch-callout-none {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Tap highlight removal for crisp native PWA feel */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
