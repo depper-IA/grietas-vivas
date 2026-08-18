@@ -6,7 +6,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { stripMarkdownJsonWrapper, parseMarkdownResponse } from './responseParser';
+import {
+  stripMarkdownJsonWrapper,
+  parseMarkdownResponse,
+  parseProseResponse,
+} from './responseParser';
 
 describe('stripMarkdownJsonWrapper', () => {
   describe('plain JSON passthrough', () => {
@@ -283,6 +287,102 @@ describe('parseMarkdownResponse', () => {
 
     it('returns null for empty content', () => {
       expect(parseMarkdownResponse('')).toBeNull();
+    });
+  });
+});
+
+describe('parseProseResponse', () => {
+  describe('English prose', () => {
+    it('detects critical risk from "critical damage"', () => {
+      const result = parseProseResponse(
+        'The image shows critical damage to the foundation with severe cracks.',
+      );
+      expect(result?.riskLevel).toBe('critical');
+    });
+
+    it('detects high risk from "high risk level"', () => {
+      const result = parseProseResponse(
+        'The image depicts a wall with significant cracks, indicating a high risk level.',
+      );
+      expect(result?.riskLevel).toBe('high');
+    });
+
+    it('detects medium risk from "moderate severity"', () => {
+      const result = parseProseResponse(
+        'There is moderate damage visible, with some cracking of moderate severity.',
+      );
+      expect(result?.riskLevel).toBe('medium');
+    });
+
+    it('detects low risk from "minor crack" / "hairline"', () => {
+      const result = parseProseResponse(
+        'A hairline crack visible on the surface — minor cosmetic damage.',
+      );
+      expect(result?.riskLevel).toBe('low');
+    });
+  });
+
+  describe('Spanish prose', () => {
+    it('detects critical risk from "daño estructural severo"', () => {
+      const result = parseProseResponse(
+        'La imagen muestra daño estructural severo en la pared principal.',
+      );
+      expect(result?.riskLevel).toBe('critical');
+    });
+
+    it('detects high risk from "alto riesgo"', () => {
+      const result = parseProseResponse(
+        'Se observan grietas que representan un alto riesgo para la estructura.',
+      );
+      expect(result?.riskLevel).toBe('high');
+    });
+
+    it('detects medium risk from "daño moderado"', () => {
+      const result = parseProseResponse(
+        'Existe daño moderado en la superficie, sin riesgo estructural inmediato.',
+      );
+      expect(result?.riskLevel).toBe('medium');
+    });
+
+    it('detects low risk from "daño menor"', () => {
+      const result = parseProseResponse(
+        'Se aprecia daño menor, solo cosmético, sin afectar la estructura.',
+      );
+      expect(result?.riskLevel).toBe('low');
+    });
+  });
+
+  describe('output shape', () => {
+    it('uses the full prose as the description', () => {
+      const text = 'The image shows significant structural damage with wide cracks throughout.';
+      const result = parseProseResponse(text);
+      expect(result?.description).toBe(text);
+    });
+
+    it('returns confidence 0.5 (lower than usual since we are guessing)', () => {
+      const result = parseProseResponse('critical damage observed');
+      expect(result?.confidence).toBe(0.5);
+    });
+
+    it('truncates description at 2000 chars', () => {
+      const longText = 'critical damage. ' + 'x'.repeat(2500);
+      const result = parseProseResponse(longText);
+      expect(result?.description.length).toBe(2000);
+    });
+  });
+
+  describe('rejection cases', () => {
+    it('returns null when no risk signal is present', () => {
+      const result = parseProseResponse('The image shows a building with various features.');
+      expect(result).toBeNull();
+    });
+
+    it('returns null for empty content', () => {
+      expect(parseProseResponse('')).toBeNull();
+    });
+
+    it('returns null for whitespace-only content', () => {
+      expect(parseProseResponse('   \n\t  ')).toBeNull();
     });
   });
 });

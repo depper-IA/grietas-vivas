@@ -196,3 +196,105 @@ export function parseMarkdownResponse(content: string): {
     confidence,
   };
 }
+
+/**
+ * Last-resort parser for AI responses that return pure prose without any
+ * labels or structure. Extracts risk level from common phrasing patterns and
+ * uses the whole response as the description.
+ *
+ * Returns null if no risk-level signal can be extracted.
+ */
+export function parseProseResponse(content: string): {
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  confidence: number;
+} | null {
+  const normalized = content.trim();
+  if (!normalized) return null;
+
+  const lower = normalized.toLowerCase();
+
+  // Phrases that indicate each risk level, ordered from most-specific to least.
+  // Each entry: array of phrases that imply this level.
+  const riskSignals: Array<{
+    level: 'low' | 'medium' | 'high' | 'critical';
+    phrases: string[];
+  }> = [
+    {
+      level: 'critical',
+      phrases: [
+        'critical risk',
+        'critical damage',
+        'extreme damage',
+        'severe structural damage',
+        'urgent',
+        'inminente',
+        'riesgo crítico',
+        'daño crítico',
+        'daño estructural severo',
+        'peligro inminente',
+      ],
+    },
+    {
+      level: 'high',
+      phrases: [
+        'high risk',
+        'severe damage',
+        'high severity',
+        'structural damage',
+        'structural concern',
+        'significant cracks',
+        'wide cracks',
+        'alto riesgo',
+        'daño severo',
+        'daño grave',
+        'daño estructural',
+        'severidad alta',
+        'preocupación estructural',
+        'grietas significativas',
+      ],
+    },
+    {
+      level: 'medium',
+      phrases: [
+        'moderate damage',
+        'medium risk',
+        'moderate severity',
+        'medium severity',
+        'daño moderado',
+        'riesgo medio',
+        'severidad media',
+      ],
+    },
+    {
+      level: 'low',
+      phrases: [
+        'low risk',
+        'minor damage',
+        'cosmetic',
+        'minor crack',
+        'hairline',
+        'bajo riesgo',
+        'daño menor',
+        'cosmético',
+        'grieta menor',
+      ],
+    },
+  ];
+
+  let detected: 'low' | 'medium' | 'high' | 'critical' | null = null;
+  for (const { level, phrases } of riskSignals) {
+    if (phrases.some((p) => lower.includes(p))) {
+      detected = level;
+      break;
+    }
+  }
+
+  if (!detected) return null;
+
+  return {
+    riskLevel: detected,
+    description: normalized.slice(0, 2000),
+    confidence: 0.5, // Lower confidence since we're guessing the level
+  };
+}

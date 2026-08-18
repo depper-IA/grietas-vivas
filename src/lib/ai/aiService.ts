@@ -19,6 +19,7 @@ import type { SafeErrorResponse } from '@/lib/errors/types';
 import {
   stripMarkdownJsonWrapper,
   parseMarkdownResponse,
+  parseProseResponse,
 } from './responseParser';
 
 /** Maximum allowed image size in bytes (10 MB). */
@@ -258,7 +259,7 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       const jsonContent = stripMarkdownJsonWrapper(rawResponse.content);
       parsed = JSON.parse(jsonContent);
     } catch {
-      // Fallback: try to parse markdown-formatted response (e.g. **Risk Level:** Critical)
+      // Fallback 1: try to parse markdown-formatted response (e.g. **Risk Level:** Critical)
       const markdownParsed = parseMarkdownResponse(rawResponse.content);
       if (markdownParsed) {
         this.log(
@@ -267,14 +268,24 @@ export class AIServiceAdapter implements IAIServiceAdapter {
         );
         parsed = markdownParsed;
       } else {
-        this.log(
-          'error',
-          `Provider ${providerName} returned unparseable response: ${rawResponse.content.slice(0, 200)}`,
-        );
-        throw new AIServiceError(
-          'RESPONSE_PARSE_ERROR',
-          'AI provider response could not be parsed as JSON',
-        );
+        // Fallback 2: try to extract risk level from plain prose
+        const proseParsed = parseProseResponse(rawResponse.content);
+        if (proseParsed) {
+          this.log(
+            'warn',
+            `Provider ${providerName} returned unstructured prose, parsed via prose fallback (confidence forced to 0.5)`,
+          );
+          parsed = proseParsed;
+        } else {
+          this.log(
+            'error',
+            `Provider ${providerName} returned unparseable response: ${rawResponse.content.slice(0, 200)}`,
+          );
+          throw new AIServiceError(
+            'RESPONSE_PARSE_ERROR',
+            'AI provider response could not be parsed as JSON',
+          );
+        }
       }
     }
 
