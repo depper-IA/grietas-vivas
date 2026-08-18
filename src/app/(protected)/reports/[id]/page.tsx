@@ -38,6 +38,7 @@ import {
   RefreshCw,
   FileText,
 } from 'lucide-react';
+import { FormattedAnalysisText } from '@/components/reports/FormattedAnalysisText';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
 import { getCapture } from '@/lib/db/localDb';
 import { generateReport, type ReportOutput } from '@/app/actions/report';
@@ -573,9 +574,9 @@ export default function ReportDetailPage() {
               </div>
             )}
           </div>
-          <p className="mt-3 text-[15px] leading-relaxed text-text-primary">
-            {report.analysisText}
-          </p>
+          <div className="mt-3">
+            <FormattedAnalysisText text={report.analysisText} />
+          </div>
         </div>
       </section>
 

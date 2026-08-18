@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { arrayBufferToBase64 } from './helpers';
 import { mapRiskLevelToSeverity } from '@/lib/ui/severity';
+import { FormattedAnalysisText } from '@/components/reports/FormattedAnalysisText';
 import { CaptureSuccessPanel } from './CaptureSuccessPanel';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
@@ -633,9 +634,9 @@ export default function CapturePage() {
                     size="md"
                   />
                 </div>
-                <p className="mt-3 line-clamp-4 text-xs text-text-secondary">
-                  {finalResult.description}
-                </p>
+                <div className="mt-3">
+                  <FormattedAnalysisText text={finalResult.description} />
+                </div>
                 {reportId && (
                   <a
                     href={`/reports/${reportId}`}

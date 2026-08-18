@@ -19,6 +19,7 @@
 import { Camera, FileText } from 'lucide-react';
 import { PostTriageActionGuide } from '@/components/reports/PostTriageActionGuide';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
+import { FormattedAnalysisText } from '@/components/reports/FormattedAnalysisText';
 import { MotionButton } from '@/components/ui/MotionButton';
 import type { TriageOutcome } from '@/lib/validation/schemas';
 import { mapRiskLevelToSeverity } from '@/lib/ui/severity';
@@ -86,9 +87,7 @@ export function CaptureSuccessPanel({
             </span>
           </div>
         </div>
-        <p className="text-[15px] leading-relaxed text-text-primary">
-          {description}
-        </p>
+        <FormattedAnalysisText text={description} />
       </div>
 
       {/* Link al reporte completo */}
