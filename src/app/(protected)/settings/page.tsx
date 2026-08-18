@@ -72,16 +72,14 @@ const PROVIDER_METADATA: Record<
       { id: 'custom', label: 'Otro modelo personalizado...', badge: 'Personalizado' },
     ],
   },
-  minimax: {
+minimax: {
     name: 'MiniMax',
     keyUrl: 'https://platform.minimax.io/',
-    keyHint: 'Token Plan Global en platform.minimax.io o API Key.',
+    keyHint: 'Token Plan Global en platform.minimax.io (modelo: MiniMax-M3 con visión).',
     defaultBaseUrl: 'https://api.minimax.io/v1',
-    defaultModel: 'MiniMax-VL-01',
+    defaultModel: 'MiniMax-M3',
     models: [
-      { id: 'MiniMax-VL-01', label: 'MiniMax-VL-01 (Vision)', badge: 'Recomendado' },
-      { id: 'abab6.5s-chat', label: 'abab6.5s-chat', badge: 'Multimodal' },
-      { id: 'MiniMax-Text-01', label: 'MiniMax-Text-01', badge: 'Básico' },
+      { id: 'MiniMax-M3', label: 'MiniMax-M3 (Visión + Texto)', badge: 'Único multimodal' },
     ],
   },
   'nvidia-nim': {

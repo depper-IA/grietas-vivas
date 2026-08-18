@@ -22,7 +22,7 @@ function createPayload(): AnalysisPayload {
 function createSuccessResponse(content: string = '{"riskLevel":"high","description":"Fisura diagonal en muro","confidence":0.92}') {
   return {
     choices: [{ message: { content } }],
-    model: 'MiniMax-VL-01',
+    model: 'MiniMax-M3',
     usage: { prompt_tokens: 120, completion_tokens: 60 },
   };
 }
@@ -47,7 +47,7 @@ describe('MinimaxProvider', () => {
       expect(provider.name).toBe('minimax');
     });
 
-    it('uses default model MiniMax-VL-01 when omitted', async () => {
+    it('uses default model MiniMax-M3 when omitted', async () => {
       const p = new MinimaxProvider('test-key');
       expect(await p.isAvailable()).toBe(true);
     });
@@ -88,14 +88,14 @@ describe('MinimaxProvider', () => {
       expect(options.headers['Content-Type']).toBe('application/json');
 
       const body = JSON.parse(options.body);
-      expect(body.model).toBe('MiniMax-VL-01');
+      expect(body.model).toBe('MiniMax-M3');
       expect(body.max_tokens).toBe(1024);
       expect(body.messages[0].role).toBe('user');
       expect(body.messages[0].content).toHaveLength(2);
 
       expect(result.content).toBe('{"riskLevel":"high","description":"Fisura diagonal en muro","confidence":0.92}');
       expect(result.metadata?.provider).toBe('minimax');
-      expect(result.metadata?.model).toBe('MiniMax-VL-01');
+      expect(result.metadata?.model).toBe('MiniMax-M3');
     });
   });
 

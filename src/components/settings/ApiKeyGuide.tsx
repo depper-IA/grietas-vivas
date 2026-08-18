@@ -58,7 +58,7 @@ const GUIDES: GuideItem[] = [
       'Regístrate en platform.minimax.io (Plataforma Global).',
       'Dirígete a "API Keys" o "Token Plan" en tu panel de control.',
       'Genera una nueva API Key y copia el token.',
-      'Pégala en SafeSpace con el modelo "MiniMax-VL-01" y la URL base predeterminada.',
+      'Pégala en SafeSpace con el modelo "MiniMax-M3" (recomendado para visión).',
     ],
     tips: 'Para la plataforma global usa https://api.minimax.io/v1 como URL base.',
   },

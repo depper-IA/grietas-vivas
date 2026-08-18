@@ -15,8 +15,8 @@ const MINIMAX_TIMEOUT_MS = 15_000;
 /** Default Minimax chat completions base URL (Global Token Plan: platform.minimax.io). */
 const DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
 
-/** Default model for vision analysis on Minimax (Vision-Language model). */
-const DEFAULT_MODEL = 'MiniMax-VL-01';
+/** Default model for vision analysis on Minimax (multimodal M3 — supports images natively). */
+const DEFAULT_MODEL = 'MiniMax-M3';
 
 export class MinimaxProvider implements IAIProvider {
   public readonly name = 'minimax';
