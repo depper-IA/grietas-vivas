@@ -145,7 +145,7 @@ export function CameraViewfinder({
   if (error) {
     return (
       <section
-        className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl border border-status-critical-border bg-surface-1 p-4 shadow-lg"
+        className="flex h-full min-h-[60vh] w-full flex-1 items-center justify-center rounded-2xl border border-status-critical-border bg-surface-1 p-4 shadow-lg"
         aria-label="Cámara no disponible"
       >
         <p className="px-4 text-center text-sm font-medium text-status-critical-fg">{error}</p>
@@ -154,7 +154,7 @@ export function CameraViewfinder({
   }
 
   return (
-    <section className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default bg-black shadow-lg">
+    <section className="relative h-full min-h-[60vh] w-full flex-1 overflow-hidden rounded-2xl border border-border-default bg-black shadow-lg">
       <video
         ref={videoRef}
         autoPlay

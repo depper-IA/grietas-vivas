@@ -28,6 +28,7 @@ import {
   Zap,
   Loader2,
   Ruler,
+  Upload,
 } from 'lucide-react';
 
 export type CaptureState = 'idle' | 'capturing' | 'processing';
@@ -41,6 +42,10 @@ export interface CaptureViewfinderHUDProps {
   onTorchToggle: () => void;
   /** Estado de la linterna (true = encendida). */
   torchOn: boolean;
+  /** Callback al pulsar el boton de upload (seleccionar imagen existente). */
+  onUpload?: () => void;
+  /** Estado del upload (true = procesando). */
+  uploading?: boolean;
   /** Angulo de pitch en grados (default 0). */
   pitch?: number;
   /** Angulo de roll en grados (default 0). */
@@ -87,6 +92,8 @@ export function CaptureViewfinderHUD({
   onCapture,
   onTorchToggle,
   torchOn,
+  onUpload,
+  uploading = false,
   pitch = 0,
   roll = 0,
   className = '',
@@ -113,6 +120,26 @@ export function CaptureViewfinderHUD({
         .filter(Boolean)
         .join(' ')}
     >
+      {/* Guia visual: muestra al usuario como encuadrar la foto.
+          Solo visible cuando la camara esta lista (no capturando ni procesando). */}
+      {captureState === 'idle' && (
+        <div
+          data-testid="capture-guide"
+          className="pointer-events-none absolute inset-x-0 bottom-24 flex flex-col items-center gap-2 px-4 sm:bottom-28"
+        >
+          <div className="flex max-w-xs flex-col items-center gap-1.5 rounded-xl border border-white/30 bg-black/55 px-4 py-3 text-center backdrop-blur-md">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#f9b20e]">
+              Guía rápida
+            </p>
+            <p className="text-sm font-medium leading-tight text-white">
+              Centra la grieta en el cuadro
+            </p>
+            <p className="text-xs leading-snug text-white/80">
+              Buena luz natural · Enfoque nítido · 30–50 cm de distancia
+            </p>
+          </div>
+        </div>
+      )}
       {/* Crosshair / regla de los tercios */}
       <svg
         data-testid="crosshair"
@@ -187,10 +214,10 @@ export function CaptureViewfinderHUD({
         className={[
           'pointer-events-auto absolute right-4 top-4',
           'flex h-12 w-12 items-center justify-center rounded-full',
-          'border border-border-default bg-surface-1/80 text-text-primary backdrop-blur',
+          'border border-white/40 bg-black/60 text-white backdrop-blur-md',
           'transition-colors duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]',
-          'hover:border-border-strong hover:bg-surface-2',
-          'focus:outline-none focus:ring-2 focus:ring-brand-accent',
+          'hover:border-white/60 hover:bg-black/70',
+          'focus:outline-none focus:ring-2 focus:ring-white',
           'active:scale-95',
         ].join(' ')}
       >
@@ -205,11 +232,38 @@ export function CaptureViewfinderHUD({
       <div
         data-testid="scale-reference"
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-6 left-6 flex items-end gap-1.5 rounded-md border border-border-default bg-surface-1/80 px-2 py-1 text-xs text-text-primary backdrop-blur"
+        className="pointer-events-none absolute bottom-6 left-6 flex items-end gap-1.5 rounded-md border border-white/40 bg-black/60 px-2 py-1 text-sm font-medium text-white backdrop-blur-md"
       >
         <Ruler className="h-3.5 w-3.5" aria-hidden="true" />
         <span className="font-mono tabular-nums">5 cm</span>
       </div>
+
+      {/* Boton de upload (esquina inferior derecha) — espejo del torch */}
+      {onUpload && (
+        <button
+          data-testid="upload-button"
+          type="button"
+          onClick={onUpload}
+          disabled={uploading || captureState !== 'idle'}
+          aria-label="Subir foto existente para analizar"
+          className={[
+            'pointer-events-auto absolute bottom-6 right-4',
+            'flex h-12 w-12 items-center justify-center rounded-full',
+            'border border-white/40 bg-black/60 text-white backdrop-blur-md',
+            'transition-colors duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            'hover:border-white/60 hover:bg-black/70',
+            'focus:outline-none focus:ring-2 focus:ring-white',
+            'active:scale-95',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+          ].join(' ')}
+        >
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" focusable="false" />
+          ) : (
+            <Upload className="h-5 w-5" aria-hidden="true" focusable="false" />
+          )}
+        </button>
+      )}
 
       {/* Boton de captura con maquina de estados */}
       <button

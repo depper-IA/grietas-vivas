@@ -19,6 +19,7 @@
 import { Camera, FileText } from 'lucide-react';
 import { PostTriageActionGuide } from '@/components/reports/PostTriageActionGuide';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
+import { MotionButton } from '@/components/ui/MotionButton';
 import type { TriageOutcome } from '@/lib/validation/schemas';
 import { mapRiskLevelToSeverity } from '@/lib/ui/severity';
 import type { RiskLevel } from '@/lib/ai/types';
@@ -105,14 +106,17 @@ export function CaptureSuccessPanel({
       )}
 
       {/* Nueva captura */}
-      <button
+      <MotionButton
         type="button"
         onClick={onNewCapture}
-        className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-brand-accent px-4 py-3 text-base font-semibold text-surface-0 shadow-lg shadow-brand-accent/20 transition-all duration-150 active:scale-[0.98] hover:bg-brand-accent/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
+        buttonProps={{
+          className:
+            'flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-brand-cta px-6 py-3 text-base font-semibold text-white shadow-lg shadow-brand-cta/20 hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0',
+        }}
       >
         <Camera className="h-5 w-5 shrink-0" aria-hidden="true" focusable="false" />
         <span>Nueva Captura</span>
-      </button>
+      </MotionButton>
     </div>
   );
 }

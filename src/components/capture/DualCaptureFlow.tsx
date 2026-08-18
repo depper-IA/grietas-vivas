@@ -38,6 +38,7 @@ import { PATTERN_METADATA } from '@/lib/validation/crackTaxonomy';
 import { DualCaptureHUD, type DualCaptureStep } from './DualCaptureHUD';
 import { CrackPatternSelector } from './CrackPatternSelector';
 import { DangerSignalsChecklist } from './DangerSignalsChecklist';
+import { MotionButton } from '@/components/ui/MotionButton';
 
 /** Paso visible del flow. */
 export type DualCaptureFlowStep = 'capture' | 'pattern' | 'signals' | 'summary';
@@ -184,7 +185,7 @@ export function DualCaptureFlow({
       role="region"
       aria-label={DEFAULT_ARIA_LABEL}
       className={[
-        'flex w-full flex-col gap-4',
+        'flex w-full flex-1 flex-col gap-4',
         className,
       ]
         .filter(Boolean)
@@ -312,17 +313,20 @@ export function DualCaptureFlow({
         )}
 
         {step !== 'summary' && (
-          <button
+          <MotionButton
             type="button"
             data-testid="dual-flow-continue"
             onClick={goForward}
             disabled={!canAdvance}
             aria-label="Continuar al siguiente paso"
-            className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-brand-accent bg-brand-accent px-4 py-3 text-sm font-semibold text-surface-0 shadow-sm transition-all duration-150 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0 disabled:cursor-not-allowed disabled:opacity-40"
+            buttonProps={{
+              className:
+                'flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full border-2 border-brand-cta bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0 disabled:cursor-not-allowed disabled:opacity-40',
+            }}
           >
             <span>Continuar</span>
             <ChevronRight className="h-4 w-4" aria-hidden="true" focusable="false" />
-          </button>
+          </MotionButton>
         )}
 
         {step === 'summary' && (

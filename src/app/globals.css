@@ -10,37 +10,38 @@
  * override en runtime via @media queries (prefers-contrast, etc).
  */
 :root {
-  /* Fondo y texto base */
-  --background: #0b1220;
-  --foreground: #f5f7fa;
+  /* Fondo y texto base — TEMA CLARO alineado a RutaDeAyuda */
+  --background: #ffffff;
+  --foreground: #0f172a;
 
-  /* Superficies (dark-first) */
-  --surface-0: #0b1220;
-  --surface-1: #0f1726;
-  --surface-2: #162033;
-  --surface-3: #1d2a44;
+  /* Superficies (alineadas al `muted` y `border` de RutaDeAyuda) */
+  --surface-0: #ffffff;
+  --surface-1: #f1f5f9;
+  --surface-2: #e2e8f0;
+  --surface-3: #cbd5e1;
 
   /* Bordes */
-  --border-subtle: #1d2a44;
-  --border-default: #2a3a5a;
-  --border-strong: #4a5a7a;
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
 
-  /* Texto (todos alcanzan >= 7:1 contra surface-0/1) */
-  --text-primary: #f5f7fa;
-  --text-secondary: #c8d1de;
-  --text-muted: #9ba6b6;
+  /* Texto (>= 7:1 AAA estricto contra surface-0/1) */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #334155;
 
-  /* Marca */
-  --brand-accent: #38bdf8;
+  /* Marca — alineada al screenshot de RutaDeAyuda */
+  --brand-accent: #1d4ed8;  /* blue-700 — texto/iconos/links/outlines */
+  --brand-cta: #dc2626;     /* red-600 — fondo del CTA primario (texto blanco) */
 
   /* Severidad (badges): ver src/lib/ui/tokens.ts REQUIRED_SEVERITY_PAIRS */
   --status-minor-bg: #16a34a;
   --status-minor-fg: #052e16;
   --status-minor-border: #14532d;
 
-  --status-moderate-bg: #ca8a04;
-  --status-moderate-fg: #422006;
-  --status-moderate-border: #78350f;
+  --status-moderate-bg: #eab308;
+  --status-moderate-fg: #1c1207;
+  --status-moderate-border: #854d0e;
 
   --status-critical-bg: #b91c1c;
   --status-critical-fg: #fef2f2;
@@ -56,9 +57,9 @@
   --triage-habitable-fg: #f0fdf4;
   --triage-habitable-border: #14532d;
 
-  --triage-monitoring-bg: #a16207;
-  --triage-monitoring-fg: #fef9c3;
-  --triage-monitoring-border: #713f12;
+  --triage-monitoring-bg: #b45309;
+  --triage-monitoring-fg: #fef3c7;
+  --triage-monitoring-border: #7c2d12;
 
   --triage-unsafe-bg: #c2410c;
   --triage-unsafe-fg: #ffedd5;

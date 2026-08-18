@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
+import { PasswordInput } from '@/components/ui/PasswordInput';
+import { MotionButton } from '@/components/ui/MotionButton';
 
 interface FormErrors {
   email?: string;
@@ -141,13 +143,13 @@ export default function RegisterPage() {
         <div
           role="alert"
           aria-live="polite"
-          className="mb-4 rounded-xl border border-status-critical-border bg-status-critical/20 p-3 text-sm text-status-critical-fg"
+          className="mb-4 rounded-xl border border-status-critical-border bg-status-critical/10 p-3 text-sm text-status-critical"
         >
           <p>{serverError}</p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate>
+      <form onSubmit={handleSubmit} method="post" action="/register" autoComplete="on" noValidate>
         <div className="space-y-4">
           <div>
             <label
@@ -188,21 +190,16 @@ export default function RegisterPage() {
             >
               Contraseña
             </label>
-            <input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               autoComplete="new-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? 'password-error' : undefined}
-              className={`block w-full min-h-[48px] rounded-xl border px-3.5 py-2.5 text-base sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 ${
-                errors.password
-                  ? 'border-status-critical-border bg-surface-2 focus:border-status-critical-border focus:ring-status-critical-border'
-                  : 'border-border-default bg-surface-2 focus:border-brand-accent focus:ring-brand-accent'
-              }`}
+              hasError={!!errors.password}
               placeholder="••••••••"
             />
             {errors.password && (
@@ -222,10 +219,9 @@ export default function RegisterPage() {
             >
               Confirmar contraseña
             </label>
-            <input
+            <PasswordInput
               id="confirm-password"
               name="confirmPassword"
-              type="password"
               autoComplete="new-password"
               required
               value={confirmPassword}
@@ -234,11 +230,7 @@ export default function RegisterPage() {
               aria-describedby={
                 errors.confirmPassword ? 'confirm-password-error' : undefined
               }
-              className={`block w-full min-h-[48px] rounded-xl border px-3.5 py-2.5 text-base sm:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 ${
-                errors.confirmPassword
-                  ? 'border-status-critical-border bg-surface-2 focus:border-status-critical-border focus:ring-status-critical-border'
-                  : 'border-border-default bg-surface-2 focus:border-brand-accent focus:ring-brand-accent'
-              }`}
+              hasError={!!errors.confirmPassword}
               placeholder="••••••••"
             />
             {errors.confirmPassword && (
@@ -251,13 +243,16 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full min-h-[48px] rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-surface-0 shadow-lg shadow-brand-accent/20 transition-all duration-150 hover:bg-brand-accent/90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50"
-          >
-            {loading ? 'Creando cuenta...' : 'Crear cuenta'}
-          </button>
+<MotionButton
+              type="submit"
+              disabled={loading}
+              buttonProps={{
+                className:
+                  'w-full min-h-[48px] rounded-full bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-cta/20 hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50',
+              }}
+            >
+              {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
+            </MotionButton>
         </div>
       </form>
 

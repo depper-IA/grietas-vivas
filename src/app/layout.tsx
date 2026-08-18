@@ -13,7 +13,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
-  themeColor: '#0b1220',
+  themeColor: '#ffffff',
 };
 
 export default function RootLayout({
@@ -22,8 +22,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark">
-      <body className="min-h-[100dvh] bg-surface-0 text-text-primary antialiased selection:bg-brand-accent/20 selection:text-brand-accent overflow-x-hidden">
+    <html lang="es">
+      <body
+        suppressHydrationWarning
+        className="min-h-[100dvh] bg-surface-0 text-text-primary antialiased selection:bg-brand-accent/20 selection:text-brand-accent overflow-x-hidden"
+      >
         {children}
       </body>
     </html>

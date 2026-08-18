@@ -10,6 +10,7 @@ import {
 } from '@/lib/crypto/byokEncryption';
 import type { AIConfig } from '@/lib/ai/types';
 import { Sparkles, Shield, Key, Eye, EyeOff, Save, Trash2, Info, CheckCircle2, AlertCircle } from 'lucide-react';
+import { MotionButton } from '@/components/ui/MotionButton';
 
 type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'gemini';
 
@@ -399,15 +400,18 @@ export default function SettingsPage() {
 
           {/* Action buttons */}
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button
+            <MotionButton
               ref={saveButtonRef}
               type="submit"
               disabled={loading}
-              className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-surface-0 shadow-lg shadow-brand-accent/20 transition-all duration-150 hover:bg-brand-accent/90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50"
+              buttonProps={{
+                className:
+                  'flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-cta/20 hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50',
+              }}
             >
               <Save className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{loading ? 'Guardando...' : 'Guardar Clave API'}</span>
-            </button>
+            </MotionButton>
             {mode === 'byok' && (
               <button
                 ref={clearButtonRef}

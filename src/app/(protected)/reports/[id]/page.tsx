@@ -43,6 +43,7 @@ import { getCapture } from '@/lib/db/localDb';
 import { generateReport, type ReportOutput } from '@/app/actions/report';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { PostTriageActionGuide } from '@/components/reports/PostTriageActionGuide';
+import { MotionButton } from '@/components/ui/MotionButton';
 import { CRACK_DIAGRAMS, CRACK_DIAGRAM_VIEWBOX } from '@/components/capture/crackPatternDiagrams';
 import { DANGER_SIGNAL_DEFS } from '@/components/capture/dangerSignals.constants';
 import { mapRiskLevelToSeverity } from '@/lib/ui/severity';
@@ -720,13 +721,16 @@ export default function ReportDetailPage() {
         </h2>
         <div className="mt-3 rounded-2xl border border-border-default bg-surface-1 p-4 sm:p-5 shadow-sm">
           {pdfState === 'idle' && !isOffline && (
-            <button
+            <MotionButton
               onClick={handleGeneratePdf}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-surface-0 shadow-lg shadow-brand-accent/20 transition-all duration-150 hover:bg-brand-accent/90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
+              buttonProps={{
+                className:
+                  'flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-cta/20 hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0',
+              }}
             >
               <FileText className="h-5 w-5" aria-hidden="true" />
               <span>Generar PDF</span>
-            </button>
+            </MotionButton>
           )}
 
           {pdfState === 'idle' && isOffline && (

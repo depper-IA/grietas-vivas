@@ -52,7 +52,31 @@ export function useEvaluateSafetyOverride(
   aiRiskLevel?: AIRiskLevel | null
 ): TriageOutcome | null {
   return useMemo(() => {
-    if (!pattern || !dangerSignals) return null;
+    // Sin input manual del usuario (pattern + dangerSignals): devuelve
+    // el baseline segun la severidad AI. Asi el panel de exito siempre
+    // se muestra, sin requerir que el usuario haya seleccionado patron o
+    // senales manualmente.
+    if (!pattern && !dangerSignals) {
+      const severity: AIRiskLevel = aiRiskLevel ?? 'low';
+      return evaluateSafetyOverride('hairline_cosmetic', {
+        jammedDoorsWindows: false,
+        unleveledFloors: false,
+        tiltedElements: false,
+        exposedRebarSpalling: false,
+        throughWallXCracks: false,
+      }, severity);
+    }
+    // Input parcial: cae al baseline (no override posible)
+    if (!pattern || !dangerSignals) {
+      const severity: AIRiskLevel = aiRiskLevel ?? 'low';
+      return evaluateSafetyOverride('hairline_cosmetic', {
+        jammedDoorsWindows: false,
+        unleveledFloors: false,
+        tiltedElements: false,
+        exposedRebarSpalling: false,
+        throughWallXCracks: false,
+      }, severity);
+    }
     const severity: AIRiskLevel = aiRiskLevel ?? 'low';
     return evaluateSafetyOverride(pattern, dangerSignals, severity);
   }, [pattern, dangerSignals, aiRiskLevel]);

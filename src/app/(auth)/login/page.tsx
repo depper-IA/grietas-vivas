@@ -4,6 +4,8 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
+import { PasswordInput } from '@/components/ui/PasswordInput';
+import { MotionButton } from '@/components/ui/MotionButton';
 
 type AuthMode = 'password' | 'magic-link';
 
@@ -157,11 +159,11 @@ function LoginContent() {
       </h2>
 
       {/* Mode toggle */}
-      <div className="mb-6 flex rounded-xl border border-border-default bg-surface-2/60 p-1">
+      <div className="mb-6 flex rounded-full border border-border-default bg-surface-2/60 p-1">
         <button
           type="button"
           onClick={() => setMode('password')}
-          className={`flex-1 min-h-[44px] rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
+          className={`flex-1 min-h-[44px] rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 ${
             mode === 'password'
               ? 'bg-surface-3 text-text-primary shadow-sm'
               : 'text-text-muted hover:text-text-primary'
@@ -172,7 +174,7 @@ function LoginContent() {
         <button
           type="button"
           onClick={() => setMode('magic-link')}
-          className={`flex-1 min-h-[44px] rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
+          className={`flex-1 min-h-[44px] rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 ${
             mode === 'magic-link'
               ? 'bg-surface-3 text-text-primary shadow-sm'
               : 'text-text-muted hover:text-text-primary'
@@ -187,7 +189,7 @@ function LoginContent() {
         <div
           role="alert"
           aria-live="polite"
-          className="mb-4 rounded-xl border border-status-critical-border bg-status-critical/20 p-3 text-sm text-status-critical-fg"
+          className="mb-4 rounded-xl border border-status-critical-border bg-status-critical/10 p-3 text-sm text-status-critical"
         >
           <p>{error}</p>
           {showResend && email && (
@@ -204,7 +206,7 @@ function LoginContent() {
       )}
 
       {mode === 'password' ? (
-        <form onSubmit={handlePasswordLogin} noValidate>
+        <form onSubmit={handlePasswordLogin} method="post" action="/login" autoComplete="on" noValidate>
           <div className="space-y-4">
             <div>
               <label
@@ -227,35 +229,44 @@ function LoginContent() {
               />
             </div>
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-text-primary mb-1"
-              >
-                Contraseña
-              </label>
-              <input
+              <div className="mb-1 flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-text-primary"
+                >
+                  Contraseña
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-medium text-brand-accent hover:underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full min-h-[48px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-base sm:text-sm text-text-primary placeholder:text-text-muted focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
                 placeholder="••••••••"
               />
             </div>
-            <button
+            <MotionButton
               type="submit"
               disabled={loading}
-              className="w-full min-h-[48px] rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-surface-0 shadow-lg shadow-brand-accent/20 transition-all duration-150 hover:bg-brand-accent/90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50"
+              buttonProps={{
+                className:
+                  'w-full min-h-[48px] rounded-full bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-cta/20 hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50',
+              }}
             >
               {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-            </button>
+            </MotionButton>
           </div>
         </form>
       ) : (
-        <form onSubmit={handleMagicLink} noValidate>
+        <form onSubmit={handleMagicLink} method="post" action="/login" autoComplete="on" noValidate>
           <div className="space-y-4">
             <div>
               <label
@@ -277,32 +288,19 @@ function LoginContent() {
                 placeholder="tu@correo.com"
               />
             </div>
-            <button
+            <MotionButton
               type="submit"
               disabled={loading}
-              className="w-full min-h-[48px] rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-surface-0 shadow-lg shadow-brand-accent/20 transition-all duration-150 hover:bg-brand-accent/90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50"
+              buttonProps={{
+                className:
+                  'w-full min-h-[48px] rounded-full bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-cta/20 hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50',
+              }}
             >
               {loading ? 'Enviando enlace...' : 'Enviar Enlace Mágico'}
-            </button>
+            </MotionButton>
           </div>
         </form>
       )}
-
-      <div className="relative my-6 flex items-center justify-center">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border-subtle" />
-        </div>
-        <span className="relative bg-surface-1 px-3 text-xs uppercase text-text-muted">
-          O acceso directo
-        </span>
-      </div>
-
-      <Link
-        href="/capture"
-        className="flex w-full min-h-[48px] items-center justify-center rounded-xl border border-border-default bg-surface-2 px-4 py-2.5 text-sm font-medium text-text-primary transition-all duration-150 hover:bg-surface-3 active:scale-[0.98]"
-      >
-        Continuar en Modo Demo / Explorar
-      </Link>
 
       <p className="mt-6 text-center text-sm text-text-secondary">
         ¿No tienes una cuenta?{' '}

@@ -90,10 +90,6 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       );
     }
 
-    // Select provider based on config
-    const provider = await this.selectProvider(config);
-    this.log('info', `Provider selected: ${provider.name}`);
-
     // Convert Blob to Buffer for the payload
     const arrayBuffer = await image.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
@@ -104,24 +100,84 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       maxTokens: DEFAULT_MAX_TOKENS,
     };
 
-    // Execute analysis
-    let rawResponse: RawProviderResponse;
-    try {
-      rawResponse = await provider.analyze(payload);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown provider error';
-      this.log('error', `Provider ${provider.name} failed: ${this.categorizeError(message)}`);
+    // Fallback chain: si el primer provider falla en el analyze,
+    // intenta con el siguiente disponible. Asi un timeout de openrouter
+    // cae a nvidia-nim en lugar de fallar todo el analisis.
+    const priority = this.getFallbackPriority(config);
+    const isByok = config.mode === 'byok';
+    let lastError: Error | null = null;
+    let triedAny = false; // TRUE si llegamos a llamar `analyze` en al menos un provider
+    for (const providerName of priority) {
+      const provider = this.providers.get(providerName);
+      if (!provider) {
+        // BYOK con provider no registrado: error claro
+        if (isByok) {
+          throw new AIServiceError(
+            'PROVIDER_NOT_FOUND',
+            `BYOK provider "${providerName}" is not registered`,
+          );
+        }
+        // Fallback con provider no registrado: seguimos
+        continue;
+      }
+
+      // BYOK: skip el chequeo de disponibilidad (siempre se intenta)
+      // Fallback: chequea isAvailable antes de gastar tokens
+      if (config.mode === 'fallback') {
+        let available = false;
+        try {
+          available = await provider.isAvailable();
+        } catch {
+          this.log('warn', `Availability check failed for ${providerName}, skipping`);
+          continue;
+        }
+        if (!available) continue;
+      }
+
+      this.log('info', `Provider selected: ${provider.name}`);
+      triedAny = true;
+
+      // FASE 1: ejecutar analyze (puede fallar por timeout/red/etc).
+      // Si falla, pasamos al siguiente provider (fallback chain).
+      let rawResponse: RawProviderResponse;
+      try {
+        rawResponse = await provider.analyze(payload);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown provider error';
+        this.log(
+          'warn',
+          `Provider ${provider.name} failed: ${this.categorizeError(message)}, trying next`,
+        );
+        lastError = error instanceof Error ? error : new Error(message);
+        continue;
+      }
+      this.log('info', `Provider ${provider.name} responded successfully`);
+
+      // FASE 2: validar respuesta. Si la respuesta es invalida (JSON malformado,
+      // campos fuera de rango, etc.), NO seguimos intentando con otros providers
+      // — el modelo respondio y no tiene sentido reintentar. Lanzamos el error
+      // de validacion directamente.
+      return this.validateResponse(rawResponse, provider.name);
+    }
+
+    // Si ningun provider estaba disponible (ninguno paso el isAvailable),
+    // devolvemos NO_PROVIDER_AVAILABLE. Si al menos uno fue probado y todos
+    // fallaron en analyze, devolvemos PROVIDER_ERROR.
+    if (!triedAny) {
       throw new AIServiceError(
-        'PROVIDER_ERROR',
-        `Analysis failed: ${this.categorizeError(message)}`,
+        'NO_PROVIDER_AVAILABLE',
+        'No AI provider is currently available for analysis',
       );
     }
 
-    this.log('info', `Provider ${provider.name} responded successfully`);
-
-    // Parse and validate response
-    return this.validateResponse(rawResponse, provider.name);
+    // Todos los providers fallaron
+    const finalMessage = lastError?.message ?? 'All providers failed';
+    this.log('error', `All fallback providers failed: ${this.categorizeError(finalMessage)}`);
+    throw new AIServiceError(
+      'PROVIDER_ERROR',
+      `Analysis failed: ${this.categorizeError(finalMessage)}`,
+    );
   }
 
   /**
@@ -168,6 +224,17 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       'NO_PROVIDER_AVAILABLE',
       'No AI provider is currently available for analysis',
     );
+  }
+
+  /**
+   * Devuelve la lista de providers a intentar en orden de prioridad.
+   * BYOK usa solo su provider; fallback usa la lista de prioridad completa.
+   */
+  private getFallbackPriority(config: AIConfig): readonly string[] {
+    if (config.mode === 'byok' && config.byok?.apiKey) {
+      return [config.byok.provider];
+    }
+    return config.fallbackPriority;
   }
 
   /**

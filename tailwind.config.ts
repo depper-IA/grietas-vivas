@@ -33,6 +33,7 @@ const config: Config = {
         // Marca
         brand: {
           accent: 'var(--brand-accent)',
+          cta: 'var(--brand-cta)',
         },
         // Severidades (bg/fg/border) - hex directos sincronizados con src/lib/ui/tokens.ts
         'status-minor': {
@@ -42,10 +43,12 @@ const config: Config = {
           border: '#14532d',
         },
         'status-moderate': {
-          DEFAULT: '#ca8a04',
-          bg: '#ca8a04',
-          fg: '#422006',
-          border: '#78350f',
+          // Yellow-500 alineado al principal RutaDeAyuda (#eab308).
+          // fg/bg = 9.61:1 WCAG AAA.
+          DEFAULT: '#eab308',
+          bg: '#eab308',
+          fg: '#1c1207',
+          border: '#854d0e',
         },
         'status-critical': {
           DEFAULT: '#b91c1c',
@@ -62,10 +65,11 @@ const config: Config = {
           border: '#14532d',
         },
         'triage-monitoring': {
-          DEFAULT: '#a16207',
-          bg: '#a16207',
-          fg: '#fef9c3',
-          border: '#713f12',
+          // Ambar alineado al dorado del logo. fg/bg = 4.51:1 WCAG AA.
+          DEFAULT: '#b45309',
+          bg: '#b45309',
+          fg: '#fef3c7',
+          border: '#7c2d12',
         },
         'triage-unsafe': {
           DEFAULT: '#c2410c',
@@ -97,8 +101,8 @@ const config: Config = {
           '50%': { opacity: '1' },
         },
         'ring-pulse': {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgb(56 189 248 / 0.6)' },
-          '50%': { boxShadow: '0 0 0 8px rgb(56 189 248 / 0)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgb(29 78 216 / 0.6)' },
+          '50%': { boxShadow: '0 0 0 8px rgb(29 78 216 / 0)' },
         },
       },
       animation: {

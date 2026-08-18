@@ -45,14 +45,10 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Check if the route is under the protected group
-  const isProtectedRoute = pathname.startsWith('/(protected)') || isProtectedPath(pathname);
+  const isProtectedRoute = isProtectedPath(pathname);
 
-  // In development, allow demo/preview access so routes can be tested without strict auth blocks
-  const isDev = process.env.NODE_ENV === 'development';
-
-  // Redirect unauthenticated users from protected routes to login in production (Req 3.4)
-  if (!user && isProtectedRoute && !isDev) {
+  // Redirect unauthenticated users from protected routes to login (Req 3.4)
+  if (!user && isProtectedRoute) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     // Preserve the original destination for post-login redirect

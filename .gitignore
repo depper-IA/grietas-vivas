@@ -47,3 +47,12 @@ coverage/
 # Dev server logs
 .dev-server.err
 .dev-server.log
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Local test assets and backups
+*.jpeg
+public/*.jpeg
+public/design.md
+public/icons/.backup-*/

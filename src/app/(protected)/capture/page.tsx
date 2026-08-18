@@ -9,7 +9,6 @@ import {
 import { CapturePreview } from '@/components/capture/CapturePreview';
 import { MetadataIndicators } from '@/components/capture/MetadataIndicators';
 import { GpsWarningBanner } from '@/components/capture/GpsWarningBanner';
-import { DualCaptureFlow, type DualCaptureFlowResult } from '@/components/capture/DualCaptureFlow';
 import { useEvaluateSafetyOverride } from './useEvaluateSafetyOverride';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import type { GpsStatus, OrientationStatus } from '@/components/capture/MetadataIndicators';
@@ -35,6 +34,54 @@ import {
 import { arrayBufferToBase64 } from './helpers';
 import { mapRiskLevelToSeverity } from '@/lib/ui/severity';
 import { CaptureSuccessPanel } from './CaptureSuccessPanel';
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+
+/**
+ * Normaliza una foto de galería para analisis:
+ *  1. Aplica la orientacion EXIF (algunos telefonos guardan landscape + flag EXIF
+ *     para que el browser la rote. Sin esto, la IA ve la imagen rotada.)
+ *  2. Convierte a JPEG (los formatos PNG/WebP/HEIC no pueden limpiarse con
+ *     `stripExifData` y pueden llevar metadata sensible a proveedores de IA).
+ *
+ * Usa `createImageBitmap({ imageOrientation: 'from-image' })` si esta disponible
+ * (Chrome, Edge, Safari recientes) — automaticamente rota los pixeles segun EXIF.
+ * Si no esta disponible, cae a `createImageBitmap(file)` sin rotacion.
+ */
+async function normalizeImageForAnalysis(file: File): Promise<Blob> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    // Fallback: navegadores sin soporte de imageOrientation
+    bitmap = await createImageBitmap(file);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('No se pudo inicializar el contexto de canvas para normalizar la imagen.');
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('No se pudo convertir la imagen a JPEG.'));
+        }
+      },
+      'image/jpeg',
+      0.9,
+    );
+  });
+}
 
 /**
  * Capture Page — Orquestador principal del flujo de captura.
@@ -67,6 +114,10 @@ export default function CapturePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
 
+  // Ref al input file oculto (para disparar picker desde el HUD).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
   // Estado del flujo de triaje (slice 4)
   const [showTriageFlow, setShowTriageFlow] = useState(false);
   const [pattern, setPattern] = useState<CrackPattern | null>(null);
@@ -81,6 +132,11 @@ export default function CapturePage() {
   const patternRef = useRef<CrackPattern | null>(pattern);
   const dangerSignalsRef = useRef<DangerSignals | null>(dangerSignals);
   const contextImageBlobRef = useRef<Blob | null>(contextImageBlob);
+  // Ref del resultado de captura — triggerAnalysis se llama desde
+  // handleStartAnalysis (handler del boton) y necesita ver el captureResult
+  // mas reciente. Sin el ref, el useCallback cierra sobre el valor inicial
+  // (null) y sale por el guard `if (!captureResult) return;`.
+  const captureResultRef = useRef<CaptureResult | null>(null);
   useEffect(() => {
     patternRef.current = pattern;
   }, [pattern]);
@@ -90,6 +146,9 @@ export default function CapturePage() {
   useEffect(() => {
     contextImageBlobRef.current = contextImageBlob;
   }, [contextImageBlob]);
+  useEffect(() => {
+    captureResultRef.current = captureResult;
+  }, [captureResult]);
 
   // Estado del flujo de analisis
   const { analyze, isAnalyzing, analysisState, result: analysisResult, error: analysisError } = useAIAnalysis();
@@ -102,9 +161,12 @@ export default function CapturePage() {
   // Hook de override de seguridad (memoiza la evaluacion).
   // Pasa la severidad AI cuando el analisis termino para que el triage
   // baseline refleje la confianza real de la IA.
+  // Sin input manual del usuario: la IA determina todo. El hook queda
+  // con valores null para mantener la firma y no romper `triageOutcome`
+  // (siempre cae al riskLevel de la IA).
   const triageOutcome = useEvaluateSafetyOverride(
-    pattern,
-    dangerSignals,
+    null,
+    null,
     finalResult?.riskLevel
   );
 
@@ -157,7 +219,7 @@ export default function CapturePage() {
     setIsCapturing(true);
   }, []);
 
-  // Handle image blob from viewfinder
+  // Handle image blob from viewfinder or upload
   const handleImageCaptured = useCallback(async (blob: Blob) => {
     try {
       const result = await captureService.capture(blob);
@@ -171,8 +233,57 @@ export default function CapturePage() {
       );
     } finally {
       setIsCapturing(false);
+      setUploading(false);
     }
   }, []);
+
+  /** Abre el file picker (boton upload del HUD). */
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  /** Procesa el archivo seleccionado por el usuario. */
+  const handleFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Reset del input para permitir re-seleccionar el mismo archivo
+      e.target.value = '';
+      if (!file) return;
+
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        setCaptureError(
+          `Formato no soportado (${file.type || 'desconocido'}). Usa JPG, PNG, WebP o HEIC.`
+        );
+        return;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setCaptureError(
+          `La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)}MB. Máximo permitido: 10MB.`
+        );
+        return;
+      }
+
+      setUploading(true);
+      setCaptureError(null);
+      setIsCapturing(true);
+
+      try {
+        // Normaliza la imagen: aplica rotacion EXIF + convierte a JPEG
+        // (necesario para que `stripExifData` pueda limpiarla antes de la IA).
+        const normalizedBlob = await normalizeImageForAnalysis(file);
+        await handleImageCaptured(normalizedBlob);
+      } catch (err) {
+        setIsCapturing(false);
+        setUploading(false);
+        setCaptureError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudo procesar la imagen. Intenta con otro formato (JPG/PNG/WebP).'
+        );
+      }
+    },
+    [handleImageCaptured]
+  );
 
   // Dismiss preview and return to camera
   const handleDismissPreview = useCallback(() => {
@@ -182,10 +293,6 @@ export default function CapturePage() {
     setCaptureResult(null);
     setPreviewUrl(null);
     setCaptureError(null);
-    setShowTriageFlow(false);
-    setPattern(null);
-    setDangerSignals(null);
-    setContextImageBlob(null);
     setFinalResult(null);
     setIsRunningAnalysis(false);
     setSyncStatus('idle');
@@ -193,14 +300,12 @@ export default function CapturePage() {
     setReportId(null);
   }, [previewUrl]);
 
-  // Start the triage flow
-  const handleStartTriage = useCallback(() => {
-    setShowTriageFlow(true);
-  }, []);
-
   // Trigger the AI analysis with the triaje data
   const triggerAnalysis = useCallback(async () => {
-    if (!captureResult) return;
+    // Lee captureResult desde el ref para evitar closure stale
+    // cuando se dispara desde handleStartAnalysis (boton "Analizar con IA").
+    const currentCapture = captureResultRef.current;
+    if (!currentCapture) return;
 
     setIsRunningAnalysis(true);
     setCaptureError(null);
@@ -209,9 +314,9 @@ export default function CapturePage() {
       // Strip EXIF before sending to AI
       let cleanImage: Blob;
       try {
-        cleanImage = await stripExifData(captureResult.imageBlob);
+        cleanImage = await stripExifData(currentCapture.imageBlob);
       } catch {
-        cleanImage = captureResult.imageBlob;
+        cleanImage = currentCapture.imageBlob;
       }
 
       // Determine AI config: BYOK or Fallback
@@ -270,17 +375,11 @@ export default function CapturePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureResult, analyze]);
 
-  // Callback cuando DualCaptureFlow completa los 4 pasos
-  const handleTriageComplete = useCallback(
-    (data: DualCaptureFlowResult) => {
-      setPattern(data.pattern);
-      setDangerSignals(data.dangerSignals);
-      setContextImageBlob(data.contextImageBlob);
-      setShowTriageFlow(false);
-      void triggerAnalysis();
-    },
-    [triggerAnalysis]
-  );
+  // Inicia el analisis de IA directamente (sin DualCaptureFlow manual).
+  // La IA determina patron, riesgo y senales a partir de la foto.
+  const handleStartAnalysis = useCallback(() => {
+    void triggerAnalysis();
+  }, [triggerAnalysis]);
 
   // Sync the capture + analysis result to Supabase backend.
   // Usa refs para leer pattern/dangerSignals/contextImageBlob
@@ -288,13 +387,15 @@ export default function CapturePage() {
   // desde el flujo async (handleTriageComplete -> triggerAnalysis).
   const syncToBackend = useCallback(
     async (result: AnalysisResult) => {
-      if (!captureResult) return;
+      // Lee captureResult del ref (mismo patron que arriba)
+      const currentCapture = captureResultRef.current;
+      if (!currentCapture) return;
 
       setSyncStatus('syncing');
       setSyncError(null);
 
       try {
-        const arrayBuffer = await captureResult.imageBlob.arrayBuffer();
+        const arrayBuffer = await currentCapture.imageBlob.arrayBuffer();
         const imageBase64 = arrayBufferToBase64(arrayBuffer);
 
         // Convierte la segunda foto (si existe) a base64
@@ -306,12 +407,12 @@ export default function CapturePage() {
 
         const syncResult = await syncCapture({
           imageBase64,
-          metadata: captureResult.metadata,
+          metadata: currentCapture.metadata,
           analysisResult: result,
           contextImageBase64,
           pattern: patternRef.current ?? undefined,
           dangerSignals: dangerSignalsRef.current ?? undefined,
-          inspectionReportId: captureResult.id,
+          inspectionReportId: currentCapture.id,
         });
 
         if (syncResult.success) {
@@ -363,13 +464,8 @@ export default function CapturePage() {
         />
       </header>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 pb-4 sm:px-6">
-        {showTriageFlow && captureResult ? (
-          <DualCaptureFlow
-            onComplete={handleTriageComplete}
-            onCancel={handleStartTriage}
-          />
-        ) : captureResult && previewUrl ? (
+      <div className="flex flex-1 flex-col items-stretch justify-start gap-4 px-0 pb-20 sm:px-0">
+        {captureResult && previewUrl ? (
           <div className="flex w-full flex-col gap-4">
             <CapturePreview
               imageUrl={previewUrl}
@@ -428,8 +524,19 @@ export default function CapturePage() {
                   Error en el análisis
                 </p>
                 <p className="mt-1 text-xs text-status-critical-fg/80">
-                  {captureError || analysisError?.message || 'Falló el análisis. Se reintentará automáticamente.'}
+                  {captureError || analysisError?.message || 'Falló el análisis. Por favor reintenta.'}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCaptureError(null);
+                    void triggerAnalysis();
+                  }}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-cta px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Reintentar análisis
+                </button>
                 {analysisState === 'retrying' && (
                   <p className="mt-2 flex items-center justify-center gap-1 text-xs text-status-moderate-fg">
                     <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
@@ -509,20 +616,20 @@ export default function CapturePage() {
             {!isRunningAnalysis && !isAnalyzing && !finalResult && syncStatus === 'idle' && !captureError && (
               <button
                 type="button"
-                onClick={handleStartTriage}
+                onClick={handleStartAnalysis}
                 className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-status-minor px-4 py-3 text-base font-semibold text-status-minor-fg shadow-lg shadow-status-minor/20 transition-opacity duration-150 active:scale-[0.98] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-status-minor-border"
               >
                 <ScanLine
                   className="h-5 w-5 shrink-0"
                   aria-hidden="true"
                 />
-                Clasificar y Analizar
+                Analizar con IA
               </button>
             )}
           </div>
         ) : (
           <>
-            <div className="relative w-full">
+            <div className="relative w-full flex-1 min-h-[60vh]">
               <CameraViewfinder
                 captureRequested={captureRequested}
                 onCapture={handleImageCaptured}
@@ -534,6 +641,8 @@ export default function CapturePage() {
                 onCapture={handleHudCapture}
                 onTorchToggle={handleTorchToggle}
                 torchOn={torchOn}
+                onUpload={handleUploadClick}
+                uploading={uploading}
                 pitch={pitch}
                 roll={roll}
               />
@@ -551,6 +660,17 @@ export default function CapturePage() {
                 {captureError}
               </p>
             )}
+
+            {/* Input file oculto para el flujo de upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_IMAGE_TYPES.join(',')}
+              onChange={handleFileSelected}
+              className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
+            />
           </>
         )}
       </div>

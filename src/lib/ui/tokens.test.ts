@@ -18,6 +18,7 @@ import {
   REQUIRED_SEVERITY_PAIRS,
   REQUIRED_TRIAGE_PAIRS,
   REQUIRED_BRAND_PAIR,
+  REQUIRED_CTA_PAIR,
   getStatusTriple,
   getTriageTriple,
   computeContrastRatio,
@@ -160,6 +161,16 @@ describe('Contraste del acento de marca (>= 4.5:1 sobre surface-0)', () => {
     REQUIRED_BRAND_PAIR.bg
   );
   it(`brand accent: ${REQUIRED_BRAND_PAIR.fg} sobre ${REQUIRED_BRAND_PAIR.bg} >= 4.5:1 (real ${ratio.toFixed(2)}:1)`, () => {
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('Contraste del CTA de marca (text-primary sobre brand.cta >= 4.5:1)', () => {
+  const ratio = computeContrastRatio(
+    REQUIRED_CTA_PAIR.fg,
+    REQUIRED_CTA_PAIR.bg
+  );
+  it(`cta: ${REQUIRED_CTA_PAIR.fg} sobre ${REQUIRED_CTA_PAIR.bg} >= 4.5:1 (real ${ratio.toFixed(2)}:1)`, () => {
     expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 });

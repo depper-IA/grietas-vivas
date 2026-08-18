@@ -212,7 +212,7 @@ export function DualCaptureHUD({
       role="region"
       aria-label={DEFAULT_ARIA_LABEL}
       className={[
-        'flex w-full flex-col gap-4 rounded-2xl border border-border-default bg-surface-1 p-4 sm:p-5',
+        'flex w-full flex-1 flex-col gap-4 rounded-2xl border border-border-default bg-surface-1 p-4 sm:p-5',
         className,
       ]
         .filter(Boolean)
@@ -252,7 +252,7 @@ export function DualCaptureHUD({
       {/* Visor de camara en vivo con overlay del marco segun paso */}
       <div
         data-testid="dual-hud-camera"
-        className="relative w-full"
+        className="relative w-full flex-1 min-h-[60vh]"
       >
         <CameraViewfinder
           captureRequested={captureRequested}

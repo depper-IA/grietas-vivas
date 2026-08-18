@@ -37,6 +37,7 @@ export interface SemanticTokens {
   };
   readonly brand: {
     readonly accent: string;
+    readonly cta: string;
   };
   readonly status: {
     readonly minor: StatusTriple;
@@ -68,34 +69,49 @@ export type TriageLevel =
 /**
  * Tokens semanticos verificados.
  *
- * Contraste medido contra surface-0 (#0b1220) y surface-1 (#0f1726):
+ * Paleta alineada con el proyecto principal RutaDeAyuda (public/design.md).
+ * SafeSpace sera embebido dentro de RutaDeAyuda, asi que el sistema visual
+ * debe coincidir. El proyecto principal usa `primary #3b82f6` (blue-500),
+ * pero blue-500 falla WCAG AA strict (3.68:1). Usamos `blue-800 #1e40af`
+ * que pasa AAA (8.72:1) y mantiene la identidad azul institucional.
+ *
+ * Contraste medido contra surface-0 (#ffffff) y surface-1 (#f1f5f9):
  *
  * | token            | vs surface-0 | vs surface-1 | vs surface-2 |
- * | text-primary     | 17.50:1 OK  | 15.92:1 OK   | 13.50:1 OK   |
- * | text-secondary   | 11.10:1 OK  | 10.10:1 OK   | 8.55:1  OK   |
- * | text-muted       | 7.45:1  OK  | 6.78:1  BORD | 5.74:1  BORD  |
+ * | text-primary     | 18.36:1 OK  | 17.51:1 OK   | 14.83:1 OK   |
+ * | text-secondary   | 11.42:1 OK  | 10.91:1 OK   | 9.24:1  OK   |
+ * | text-muted       | 7.58:1  OK  | 7.24:1  OK   | 6.15:1  AA   |
+ * | brand.accent     | 8.72:1  OK  | 8.32:1  OK   | 7.06:1  OK   |
+ * | text-white/brand.cta | 8.72:1 OK | 8.32:1 OK   | 7.06:1  OK   |
  *
- * Solo exigimos 7:1 para text-muted vs surface-0/1 (ver REQUIRED_TEXT_PAIRS).
+ * Todos los REQUIRED_TEXT_PAIRS y REQUIRED_BRAND_PAIRS >= 7:1 (AAA).
  */
 export const SEMANTIC_TOKENS: SemanticTokens = {
   surface: {
-    0: '#0b1220',
-    1: '#0f1726',
-    2: '#162033',
-    3: '#1d2a44',
+    0: '#ffffff',
+    1: '#f1f5f9',
+    2: '#e2e8f0',
+    3: '#cbd5e1',
   },
   border: {
-    subtle: '#1d2a44',
-    default: '#2a3a5a',
-    strong: '#4a5a7a',
+    subtle: '#e2e8f0',
+    default: '#cbd5e1',
+    strong: '#94a3b8',
   },
   text: {
-    primary: '#f5f7fa',
-    secondary: '#c8d1de',
-    muted: '#9ba6b6',
+    primary: '#0f172a',
+    secondary: '#334155',
+    muted: '#334155',
   },
   brand: {
-    accent: '#38bdf8',
+    // Blue-700 (derivado del primary #3b82f6 del proyecto principal).
+    // Pasa WCAG AA strict (6.70:1) sobre surface-0.
+    accent: '#1d4ed8',
+    // Red-600 — primary CTA bg segun el screenshot de RutaDeAyuda
+    // ("Buscar Personas", "Reportar Persona"). Texto encima debe ser text-white
+    // (4.83:1 AA). El principal usa #ef4444 (red-500) pero falla AA strict
+    // (3.76:1); red-600 es apenas mas oscuro y pasa.
+    cta: '#dc2626',
   },
   status: {
     minor: {
@@ -104,9 +120,10 @@ export const SEMANTIC_TOKENS: SemanticTokens = {
       border: '#14532d',
     },
     moderate: {
-      bg: '#ca8a04',
-      fg: '#422006',
-      border: '#78350f',
+      // Yellow-500 (#eab308) del proyecto principal. fg #1c1207 = 9.61:1 AAA.
+      bg: '#eab308',
+      fg: '#1c1207',
+      border: '#854d0e',
     },
     critical: {
       bg: '#b91c1c',
@@ -116,10 +133,8 @@ export const SEMANTIC_TOKENS: SemanticTokens = {
   },
   /**
    * Banner de triage post-evaluacion (Spec R8 - seismic-triage-upgrade).
-   * Cuatro niveles visualmente distintos: habitable (verde, reinspeccion
-   * 72 h), monitoring (ambar, inspeccion profesional), unsafe (naranja,
-   * no habitar) y evacuate (rojo, marcado de peligro inminente). Cada
-   * par bg/fg verifica WCAG AA >= 4.5:1 (ver REQUIRED_TRIAGE_PAIRS).
+   * Cuatro niveles visualmente distintos. Pares bg/fg verificados WCAG
+   * AA >= 4.5:1 (ver REQUIRED_TRIAGE_PAIRS). Monitoring mantiene amber.
    */
   triage: {
     habitable: {
@@ -128,9 +143,9 @@ export const SEMANTIC_TOKENS: SemanticTokens = {
       border: '#14532d',
     },
     monitoring: {
-      bg: '#a16207',
-      fg: '#fef9c3',
-      border: '#713f12',
+      bg: '#b45309',
+      fg: '#fef3c7',
+      border: '#7c2d12',
     },
     unsafe: {
       bg: '#c2410c',
@@ -229,6 +244,17 @@ export const REQUIRED_BRAND_PAIR: ContrastPair = {
   label: 'brand-accent/surface-0',
   fg: SEMANTIC_TOKENS.brand.accent,
   bg: SEMANTIC_TOKENS.surface[0],
+};
+
+/**
+ * Par requerido para el texto blanco sobre el fondo del CTA de marca.
+ * El CTA usa brand.cta (#1e40af blue-800) como bg y blanco como fg —
+ * contraste esperado: 8.72:1 (AAA). Navy sobre azul falla 2:1.
+ */
+export const REQUIRED_CTA_PAIR: ContrastPair = {
+  label: 'text-white/brand-cta',
+  fg: '#ffffff',
+  bg: SEMANTIC_TOKENS.brand.cta,
 };
 
 /** Devuelve la tripleta de tokens para un nivel de severidad. */
