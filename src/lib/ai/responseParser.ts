@@ -117,7 +117,6 @@ const RISK_LEVEL_ALIASES: Record<string, 'low' | 'medium' | 'high' | 'critical'>
   severoa: 'high',
   crítico: 'critical',
   critico: 'critical',
-  crítico: 'critical',
   extremo: 'critical',
   extrema: 'critical',
   urgente: 'critical',
