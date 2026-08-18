@@ -15,8 +15,8 @@ const OPENROUTER_TIMEOUT_MS = 15_000;
 /** Default OpenRouter base URL. */
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 
-/** Default free vision model on OpenRouter. */
-const DEFAULT_MODEL = 'google/gemini-2.0-flash-exp:free';
+/** Default free vision model on OpenRouter (Gemma 3 4B verified). */
+const DEFAULT_MODEL = 'google/gemma-3-4b-it:free';
 
 export class OpenRouterProvider implements IAIProvider {
   public readonly name = 'openrouter';
