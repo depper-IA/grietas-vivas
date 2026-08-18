@@ -611,7 +611,6 @@ export default function CapturePage() {
                 outcome={finalTriageOutcome}
                 aiRiskLevel={finalResult.riskLevel as RiskLevel}
                 confidence={finalResult.confidence}
-                provider={finalResult.provider}
                 description={finalResult.description}
                 reportId={reportId}
                 onNewCapture={handleDismissPreview}

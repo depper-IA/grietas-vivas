@@ -31,8 +31,6 @@ export interface CaptureSuccessPanelProps {
   aiRiskLevel: RiskLevel;
   /** Confianza AI entre 0 y 1. */
   confidence: number;
-  /** Proveedor AI que genero el analisis. */
-  provider: string;
   /** Descripcion humana del analisis. */
   description: string;
   /** ReportId asignado por Supabase tras la sincronizacion. */
@@ -56,7 +54,6 @@ export function CaptureSuccessPanel({
   outcome,
   aiRiskLevel,
   confidence,
-  provider,
   description,
   reportId,
   onNewCapture,
@@ -77,17 +74,21 @@ export function CaptureSuccessPanel({
       <PostTriageActionGuide outcome={outcome} />
 
       {/* Resumen del analisis AI */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-border-default bg-surface-1 p-4 shadow-sm sm:p-5">
-        <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border-default bg-gradient-to-br from-surface-1 to-surface-2 p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-border-subtle">
           <SeverityBadge level={severity} size="md" />
-          <span className="font-mono tabular-nums text-xs text-text-muted">
-            Confianza: {Math.round(confidence * 100)}%
-          </span>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="font-mono tabular-nums text-base font-semibold text-text-primary">
+              {Math.round(confidence * 100)}%
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">
+              confianza
+            </span>
+          </div>
         </div>
-        <p className="text-sm leading-snug text-text-secondary">
+        <p className="text-[15px] leading-relaxed text-text-primary">
           {description}
         </p>
-        <p className="text-xs text-text-muted">Proveedor: {provider}</p>
       </div>
 
       {/* Link al reporte completo */}

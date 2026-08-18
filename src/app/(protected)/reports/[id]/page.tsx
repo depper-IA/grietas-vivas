@@ -559,20 +559,22 @@ export default function ReportDetailPage() {
         >
           Análisis
         </h2>
-        <div className="mt-3 rounded-2xl border border-border-default bg-surface-1 p-4 sm:p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
+        <div className="mt-3 rounded-2xl border border-border-default bg-gradient-to-br from-surface-1 to-surface-2 p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-border-subtle">
             <SeverityBadge level={severity} />
             {report.analysisConfidence !== null && (
-              <span className="font-mono tabular-nums text-xs text-text-muted">
-                Confianza: {Math.round(report.analysisConfidence * 100)}%
-              </span>
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="font-mono tabular-nums text-base font-semibold text-text-primary">
+                  {Math.round(report.analysisConfidence * 100)}%
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  confianza
+                </span>
+              </div>
             )}
           </div>
-          <p className="mt-3 text-sm text-text-secondary leading-relaxed">
+          <p className="mt-3 text-[15px] leading-relaxed text-text-primary">
             {report.analysisText}
-          </p>
-          <p className="mt-3 text-xs text-text-muted">
-            Proveedor: {report.analysisProvider}
           </p>
         </div>
       </section>
