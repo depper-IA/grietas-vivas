@@ -120,7 +120,7 @@ describe('analyzeWithFallback', () => {
       expect(mockRegisterProvider).toHaveBeenCalledTimes(1);
     });
 
-    it('calls adapter.analyze with fallback config', async () => {
+    it('calls adapter.analyze with fallback config and options', async () => {
       mockAnalyze.mockResolvedValue({
         riskLevel: 'medium',
         description: 'Moderate crack',
@@ -136,6 +136,46 @@ describe('analyzeWithFallback', () => {
         expect.objectContaining({
           mode: 'fallback',
           fallbackPriority: ['nvidia-nim', 'openrouter'],
+        }),
+        expect.objectContaining({
+          contextImage: undefined,
+          structuralContext: undefined,
+        }),
+      );
+    });
+
+    it('passes contextImage and structuralContext when provided', async () => {
+      mockAnalyze.mockResolvedValue({
+        riskLevel: 'critical',
+        description: 'Critical crack on column',
+        confidence: 0.9,
+        provider: 'openrouter',
+        analyzedAt: '2024-01-15T10:00:00.000Z',
+      });
+
+      const structuralContext = {
+        elementType: 'column' as const,
+        crossesFullSpan: true,
+        hasScaleReference: true,
+        scaleReferenceType: 'coin' as const,
+        recentGrowth: true,
+      };
+
+      await analyzeWithFallback({
+        imageBase64: validBase64Image,
+        contextImageBase64: validBase64Image,
+        structuralContext,
+      });
+
+      expect(mockAnalyze).toHaveBeenCalledWith(
+        expect.any(Blob),
+        expect.objectContaining({
+          mode: 'fallback',
+          fallbackPriority: ['nvidia-nim', 'openrouter'],
+        }),
+        expect.objectContaining({
+          contextImage: expect.any(Blob),
+          structuralContext,
         }),
       );
     });

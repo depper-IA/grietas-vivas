@@ -187,28 +187,28 @@ function parseAnalysisSections(text: string): ParsedSection[] {
 const CATEGORY_STYLES = {
   patron: {
     icon: Activity,
-    badgeBg: 'bg-brand-accent/15 text-brand-accent border-brand-accent/30',
-    border: 'border-l-brand-accent',
+    badgeBg: 'bg-blue-100 text-blue-950 border-blue-300 font-bold',
+    border: 'border-l-blue-600',
   },
   ubicacion: {
     icon: Compass,
-    badgeBg: 'bg-status-moderate/15 text-status-moderate-fg border-status-moderate-border/40',
-    border: 'border-l-status-moderate',
+    badgeBg: 'bg-amber-100 text-amber-950 border-amber-300 font-bold',
+    border: 'border-l-amber-500',
   },
   severidad: {
     icon: ShieldAlert,
-    badgeBg: 'bg-status-critical/15 text-status-critical-fg border-status-critical-border/40',
-    border: 'border-l-status-critical',
+    badgeBg: 'bg-red-100 text-red-950 border-red-300 font-bold',
+    border: 'border-l-red-600',
   },
   recomendacion: {
     icon: CheckCircle2,
-    badgeBg: 'bg-status-minor/15 text-status-minor-fg border-status-minor-border/40',
-    border: 'border-l-status-minor',
+    badgeBg: 'bg-emerald-100 text-emerald-950 border-emerald-300 font-bold',
+    border: 'border-l-emerald-600',
   },
   general: {
     icon: FileText,
-    badgeBg: 'bg-surface-3 text-text-secondary border-border-default',
-    border: 'border-l-border-strong',
+    badgeBg: 'bg-slate-200 text-slate-900 border-slate-300 font-bold',
+    border: 'border-l-slate-400',
   },
 };
 
@@ -223,7 +223,7 @@ export function FormattedAnalysisText({
   }
 
   return (
-    <div className={`space-y-2.5 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
       {sections.map((sec) => {
         const style = CATEGORY_STYLES[sec.category] || CATEGORY_STYLES.general;
         const IconComponent = style.icon;
@@ -231,17 +231,17 @@ export function FormattedAnalysisText({
         return (
           <div
             key={sec.id}
-            className={`flex flex-col gap-1.5 rounded-xl border border-border-subtle bg-surface-2/70 p-3 sm:p-3.5 shadow-sm border-l-4 ${style.border} transition-all duration-150`}
+            className={`flex flex-col gap-2 rounded-xl border border-border-default bg-surface-1 p-3.5 sm:p-4 shadow-sm border-l-4 ${style.border} transition-all duration-150`}
           >
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${style.badgeBg}`}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs uppercase tracking-wide shadow-xs ${style.badgeBg}`}
               >
-                <IconComponent className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <IconComponent className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>{sec.label}</span>
               </span>
             </div>
-            <p className="text-sm font-normal leading-relaxed text-text-primary pl-0.5">
+            <p className="text-xs sm:text-sm font-medium leading-relaxed text-text-primary pl-0.5">
               {sec.content}
             </p>
           </div>

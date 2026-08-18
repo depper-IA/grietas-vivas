@@ -38,6 +38,7 @@ coverage/
 .env*
 # Local AI runtime state
 .atl/
+.notes/
 
 # Agent/skill configs (local dev tools)
 .agents/

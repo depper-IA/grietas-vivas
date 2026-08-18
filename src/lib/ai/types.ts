@@ -5,6 +5,8 @@
  * and fallback modes for crack risk analysis.
  */
 
+import type { StructuralContext } from './structuralPrompt';
+
 /** Crack severity classification assigned by AI analysis. */
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
@@ -57,6 +59,10 @@ export interface AIConfig {
 export interface AnalysisPayload {
   /** Image data without EXIF metadata */
   image: Buffer;
+  /** Optional second context image showing surrounding structural elements */
+  contextImage?: Buffer;
+  /** Optional user-provided structural context */
+  structuralContext?: StructuralContext;
   /** Structured prompt for crack analysis */
   prompt: string;
   /** Maximum tokens for the AI response */
@@ -83,8 +89,15 @@ export interface IAIProvider {
 
 /** High-level AI service adapter for routing and managing providers. */
 export interface IAIServiceAdapter {
-  /** Analyze an image using the provided configuration. */
-  analyze(image: Blob, config: AIConfig): Promise<AnalysisResult>;
+  /** Analyze an image using the provided configuration and optional structural context/images. */
+  analyze(
+    image: Blob,
+    config: AIConfig,
+    options?: {
+      contextImage?: Blob;
+      structuralContext?: StructuralContext;
+    },
+  ): Promise<AnalysisResult>;
   /** Register a new provider adapter. */
   registerProvider(provider: IAIProvider): void;
   /** Get names of all currently available providers. */

@@ -15,7 +15,8 @@ import {
   type DangerSignals,
   PATTERN_METADATA,
   evaluateSafetyOverride,
-  type TriageLevel,
+  evaluateEmergencyOffline,
+  type TriageOutcomeLevel as TriageLevel,
 } from './crackTaxonomy';
 
 describe('crackPatternSchema (R1)', () => {
@@ -404,5 +405,74 @@ describe('evaluateSafetyOverride — invariantes property-based', () => {
       }),
       { numRuns: 1000 }
     );
+  });
+});
+
+describe('evaluateEmergencyOffline (Motor Heurístico Local NSR-10 / FEMA 306)', () => {
+  const baseContext = {
+    elementType: 'column' as const,
+    crossesFullSpan: false,
+    hasScaleReference: false,
+    recentGrowth: false,
+  };
+
+  const safeSignals: DangerSignals = {
+    jammedDoorsWindows: false,
+    unleveledFloors: false,
+    tiltedElements: false,
+    exposedRebarSpalling: false,
+    throughWallXCracks: false,
+  };
+
+  it('evalua a crítico cuando hay varilla expuesta', () => {
+    const result = evaluateEmergencyOffline(
+      baseContext,
+      'hairline_cosmetic',
+      { ...safeSignals, exposedRebarSpalling: true }
+    );
+    expect(result.riskLevel).toBe('critical');
+    expect(result.provider).toBe('Motor Heurístico NSR-10 (Offline)');
+    expect(result.description).toContain('Patrón:');
+  });
+
+  it('evalua a crítico para corte diagonal o nudo en columnas', () => {
+    const resultCol = evaluateEmergencyOffline(
+      { ...baseContext, elementType: 'column' },
+      'diagonal_shear',
+      safeSignals
+    );
+    expect(resultCol.riskLevel).toBe('critical');
+
+    const resultBeam = evaluateEmergencyOffline(
+      { ...baseContext, elementType: 'beam' },
+      'structural_beam_column',
+      safeSignals
+    );
+    expect(resultBeam.riskLevel).toBe('critical');
+  });
+
+  it('evalua a bajo para grieta capilar en muro divisorio', () => {
+    const result = evaluateEmergencyOffline(
+      { ...baseContext, elementType: 'partition-wall' },
+      'hairline_cosmetic',
+      safeSignals
+    );
+    expect(result.riskLevel).toBe('low');
+  });
+
+  it('incrementa severidad ante crecimiento reciente post-sismo', () => {
+    const beforeGrowth = evaluateEmergencyOffline(
+      { ...baseContext, elementType: 'partition-wall', recentGrowth: false },
+      'hairline_cosmetic',
+      safeSignals
+    );
+    expect(beforeGrowth.riskLevel).toBe('low');
+
+    const afterGrowth = evaluateEmergencyOffline(
+      { ...baseContext, elementType: 'partition-wall', recentGrowth: true },
+      'hairline_cosmetic',
+      safeSignals
+    );
+    expect(afterGrowth.riskLevel).toBe('medium');
   });
 });

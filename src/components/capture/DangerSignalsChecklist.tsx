@@ -82,8 +82,8 @@ function SignalCard({
         'focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0',
         'active:scale-[0.98]',
         active
-          ? 'border-status-critical-border bg-status-critical/10'
-          : 'border-border-default bg-surface-1 hover:border-border-strong hover:bg-surface-2',
+          ? 'border-status-critical-border bg-status-critical/10 shadow-sm ring-1 ring-status-critical-border'
+          : 'border-border-default bg-surface-2/60 hover:border-border-strong hover:bg-surface-2',
       ].join(' ')}
     >
       <span

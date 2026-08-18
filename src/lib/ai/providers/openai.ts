@@ -48,6 +48,33 @@ export class OpenAIProvider implements IAIProvider {
       const base64Image = payload.image.toString('base64');
       const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
+      const messageContent: Array<
+        | { type: 'image_url'; image_url: { url: string } }
+        | { type: 'text'; text: string }
+      > = [
+        {
+          type: 'image_url',
+          image_url: {
+            url: dataUrl,
+          },
+        },
+      ];
+
+      if (payload.contextImage) {
+        const contextBase64 = payload.contextImage.toString('base64');
+        messageContent.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:image/jpeg;base64,${contextBase64}`,
+          },
+        });
+      }
+
+      messageContent.push({
+        type: 'text',
+        text: payload.prompt,
+      });
+
       const body = {
         model: this.model,
         max_tokens: payload.maxTokens,
@@ -56,18 +83,7 @@ export class OpenAIProvider implements IAIProvider {
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: dataUrl,
-                },
-              },
-              {
-                type: 'text',
-                text: payload.prompt,
-              },
-            ],
+            content: messageContent,
           },
         ],
       };

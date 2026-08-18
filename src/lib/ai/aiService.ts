@@ -21,6 +21,11 @@ import {
   parseMarkdownResponse,
   parseProseResponse,
 } from './responseParser';
+import {
+  buildStructuralPrompt,
+  applyStructuralRules,
+  type StructuralContext,
+} from './structuralPrompt';
 
 /** Maximum allowed image size in bytes (10 MB). */
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -113,7 +118,14 @@ export class AIServiceAdapter implements IAIServiceAdapter {
    *
    * @throws AIServiceError on validation failure, provider errors, or size limits
    */
-  async analyze(image: Blob, config: AIConfig): Promise<AnalysisResult> {
+  async analyze(
+    image: Blob,
+    config: AIConfig,
+    options?: {
+      contextImage?: Blob;
+      structuralContext?: StructuralContext;
+    },
+  ): Promise<AnalysisResult> {
     // Validate image size
     if (image.size > MAX_IMAGE_SIZE_BYTES) {
       throw new AIServiceError(
@@ -122,13 +134,31 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       );
     }
 
+    let contextImageBuffer: Buffer | undefined;
+    if (options?.contextImage) {
+      if (options.contextImage.size > MAX_IMAGE_SIZE_BYTES) {
+        throw new AIServiceError(
+          'IMAGE_TOO_LARGE',
+          `Context image exceeds maximum size of 10 MB (received ${(options.contextImage.size / 1024 / 1024).toFixed(2)} MB)`,
+        );
+      }
+      const contextArrayBuffer = await options.contextImage.arrayBuffer();
+      contextImageBuffer = Buffer.from(contextArrayBuffer);
+    }
+
     // Convert Blob to Buffer for the payload
     const arrayBuffer = await image.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
+    const prompt = options?.structuralContext
+      ? buildStructuralPrompt(options.structuralContext, !!options.contextImage)
+      : CRACK_ANALYSIS_PROMPT;
+
     const payload: AnalysisPayload = {
       image: imageBuffer,
-      prompt: CRACK_ANALYSIS_PROMPT,
+      contextImage: contextImageBuffer,
+      structuralContext: options?.structuralContext,
+      prompt,
       maxTokens: DEFAULT_MAX_TOKENS,
     };
 
@@ -190,7 +220,14 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       // campos fuera de rango, etc.), NO seguimos intentando con otros providers
       // — el modelo respondio y no tiene sentido reintentar. Lanzamos el error
       // de validacion directamente.
-      return this.validateResponse(rawResponse, provider.name);
+      let validated = this.validateResponse(rawResponse, provider.name);
+
+      // Si se proporcionó contexto estructural, aplicar reglas estructurales
+      if (options?.structuralContext) {
+        validated = applyStructuralRules(validated, options.structuralContext);
+      }
+
+      return validated;
     }
 
     // Si ningun provider estaba disponible (ninguno paso el isAvailable),
@@ -337,7 +374,11 @@ export class AIServiceAdapter implements IAIServiceAdapter {
       );
     }
 
-    return result.data;
+    const structuralFields = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+    return {
+      ...structuralFields,
+      ...result.data,
+    } as AnalysisResult;
   }
 
   /**

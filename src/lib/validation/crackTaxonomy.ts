@@ -273,3 +273,186 @@ export function evaluateSafetyOverride(
     safetyOverride: false,
   };
 }
+
+/** Contexto estructural para evaluación heurística offline. */
+export interface StructuralContextInput {
+  elementType:
+    | 'column'
+    | 'beam'
+    | 'load-bearing-wall'
+    | 'partition-wall'
+    | 'slab'
+    | 'foundation'
+    | 'other';
+  crossesFullSpan: boolean;
+  hasScaleReference: boolean;
+  scaleReferenceType?: 'coin' | 'card' | 'ruler' | 'hand' | 'none';
+  estimatedDistance?: number;
+  recentGrowth: boolean;
+  buildingFloors?: number;
+  crackFloor?: number;
+}
+
+/**
+ * evaluateEmergencyOffline — Motor heurístico determinista de triaje de emergencia
+ * post-sismo (NSR-10 / FEMA 306).
+ *
+ * Se ejecuta 100% en el dispositivo de forma instantánea cuando no hay conexión
+ * a internet o cuando todos los proveedores de IA del servidor fallan.
+ *
+ * Garantiza triaje estructural inmediato y seguro sin depender de servicios remotos.
+ */
+export function evaluateEmergencyOffline(
+  structuralContext: StructuralContextInput,
+  pattern: CrackPattern,
+  dangerSignals: DangerSignals
+): {
+  riskLevel: AIRiskLevel;
+  description: string;
+  confidence: number;
+  provider: string;
+  analyzedAt: string;
+} {
+  const meta = PATTERN_METADATA[pattern];
+
+  const elementLabels: Record<string, string> = {
+    column: 'Columna estructural',
+    beam: 'Viga estructural',
+    'load-bearing-wall': 'Muro de carga (portante)',
+    'partition-wall': 'Tabique divisorio (no estructural)',
+    slab: 'Placa / Losa de entrepiso',
+    foundation: 'Cimiento / Sobrecimiento',
+    other: 'Elemento no especificado',
+  };
+
+  const elementLabel =
+    elementLabels[structuralContext.elementType] || 'Elemento estructural';
+
+  let riskLevel: AIRiskLevel = 'low';
+
+  // 1. Reglas críticas de seguridad incondicional
+  if (
+    dangerSignals.exposedRebarSpalling ||
+    dangerSignals.throughWallXCracks ||
+    pattern === 'spalling_corrosion' ||
+    (pattern === 'diagonal_shear' && dangerSignals.jammedDoorsWindows)
+  ) {
+    riskLevel = 'critical';
+  } else if (dangerSignals.tiltedElements || dangerSignals.unleveledFloors) {
+    riskLevel = [
+      'column',
+      'beam',
+      'load-bearing-wall',
+      'foundation',
+    ].includes(structuralContext.elementType)
+      ? 'critical'
+      : 'high';
+  } else if (
+    ['column', 'beam', 'foundation'].includes(structuralContext.elementType)
+  ) {
+    if (
+      pattern === 'structural_beam_column' ||
+      pattern === 'diagonal_shear'
+    ) {
+      riskLevel = 'critical';
+    } else if (
+      pattern === 'horizontal_flexural' ||
+      (pattern === 'stepped_masonry' && structuralContext.crossesFullSpan)
+    ) {
+      riskLevel = 'high';
+    } else {
+      riskLevel =
+        meta.riskBaseline === 'critical'
+          ? 'critical'
+          : meta.riskBaseline === 'moderate'
+            ? 'high'
+            : 'medium';
+    }
+  } else if (structuralContext.elementType === 'load-bearing-wall') {
+    if (pattern === 'diagonal_shear') {
+      riskLevel = structuralContext.crossesFullSpan ? 'critical' : 'high';
+    } else if (
+      pattern === 'horizontal_flexural' ||
+      pattern === 'stepped_masonry'
+    ) {
+      riskLevel = structuralContext.crossesFullSpan ? 'high' : 'medium';
+    } else {
+      riskLevel =
+        meta.riskBaseline === 'critical'
+          ? 'high'
+          : meta.riskBaseline === 'moderate'
+            ? 'medium'
+            : 'low';
+    }
+  } else if (structuralContext.elementType === 'partition-wall') {
+    if (
+      pattern === 'hairline_cosmetic' ||
+      pattern === 'vertical_shrinkage'
+    ) {
+      riskLevel = 'low';
+    } else {
+      riskLevel = 'medium';
+    }
+  } else {
+    // slab / other
+    if (meta.riskBaseline === 'critical') {
+      riskLevel = structuralContext.crossesFullSpan ? 'critical' : 'high';
+    } else if (meta.riskBaseline === 'moderate') {
+      riskLevel = 'medium';
+    } else {
+      riskLevel = 'low';
+    }
+  }
+
+  // Modificador por crecimiento reciente post-sismo
+  if (structuralContext.recentGrowth && riskLevel !== 'critical') {
+    if (riskLevel === 'low') riskLevel = 'medium';
+    else if (riskLevel === 'medium') riskLevel = 'high';
+    else if (riskLevel === 'high') riskLevel = 'critical';
+  }
+
+  const severityNotes: string[] = [];
+  if (riskLevel === 'critical') {
+    severityNotes.push(
+      'Riesgo crítico por daño severo en elemento estructural o presencia de señales de colapso'
+    );
+  } else if (riskLevel === 'high') {
+    severityNotes.push(
+      'Riesgo alto que compromete la integridad del elemento portante'
+    );
+  } else if (riskLevel === 'medium') {
+    severityNotes.push(
+      'Riesgo moderado con afectación localizada que requiere monitoreo'
+    );
+  } else {
+    severityNotes.push(
+      'Riesgo bajo correspondiente a daño superficial o retracción no estructural'
+    );
+  }
+
+  const recommendations: Record<AIRiskLevel, string> = {
+    critical:
+      'EVACUACIÓN INMEDIATA. Cortar suministros y contactar a las autoridades de gestión del riesgo (123).',
+    high:
+      'NO HABITAR el área afectada. Solicitar inspección técnica de un ingeniero estructural.',
+    medium:
+      'Monitorear evolución de la grieta en las próximas 72 horas y restringir acceso si se observa crecimiento.',
+    low:
+      'Inmueble habitable. Documentar posibles variaciones tras réplicas o sismos secundarios.',
+  };
+
+  const description = [
+    `Patrón: ${meta.labelEs}`,
+    `Ubicación: ${elementLabel}`,
+    `Severidad: [Triaje Offline NSR-10 / FEMA 306] ${severityNotes.join('. ')}`,
+    `Recomendación: ${recommendations[riskLevel]}`,
+  ].join('\n');
+
+  return {
+    riskLevel,
+    description,
+    confidence: 0.88,
+    provider: 'Motor Heurístico NSR-10 (Offline)',
+    analyzedAt: new Date().toISOString(),
+  };
+}

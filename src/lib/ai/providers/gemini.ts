@@ -13,13 +13,6 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = 'gemini-flash-latest';
 const TIMEOUT_MS = 60_000;
 
-const SYSTEM_PROMPT = `You are a structural damage assessment AI. Analyze the provided image of a building crack and respond in JSON format with:
-- riskLevel: one of "low", "medium", "high", "critical"
-- description: brief assessment in Spanish (max 2000 chars) describing crack type, severity, and recommended action
-- confidence: number between 0.0 and 1.0 indicating your confidence in the assessment
-
-Respond ONLY with valid JSON, no markdown or explanation.`;
-
 export class GeminiProvider implements IAIProvider {
   name = 'gemini';
 
@@ -38,18 +31,33 @@ export class GeminiProvider implements IAIProvider {
     try {
       const imageBase64 = Buffer.from(payload.image).toString('base64');
 
+      const parts: Array<
+        | { text: string }
+        | { inline_data: { mime_type: string; data: string } }
+      > = [
+        { text: payload.prompt },
+        {
+          inline_data: {
+            mime_type: 'image/jpeg',
+            data: imageBase64,
+          },
+        },
+      ];
+
+      if (payload.contextImage) {
+        const contextBase64 = Buffer.from(payload.contextImage).toString('base64');
+        parts.push({
+          inline_data: {
+            mime_type: 'image/jpeg',
+            data: contextBase64,
+          },
+        });
+      }
+
       const requestBody = {
         contents: [
           {
-            parts: [
-              { text: SYSTEM_PROMPT },
-              {
-                inline_data: {
-                  mime_type: 'image/jpeg',
-                  data: imageBase64,
-                },
-              },
-            ],
+            parts,
           },
         ],
         generationConfig: {

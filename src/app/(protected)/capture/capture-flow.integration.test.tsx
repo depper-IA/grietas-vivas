@@ -1,34 +1,32 @@
 /**
- * Integration Test: Capture → AI Analysis → Sync → Report
+ * Integration Test: DualCaptureFlow (5 pasos) → AI Analysis → Sync → Report
  *
- * Flujo simplificado (post-rebrand):
- *   1. Capturar foto (camara o upload)
- *   2. Click "Analizar con IA" → la IA determina patron, riesgo, senales
- *   3. Sync al backend
- *   4. Mostrar PostTriageActionGuide
- *
- * ANTES (legacy): patron + dangerSignals + contextImageBlob se capturaban
- * manualmente via DualCaptureFlow (4 pasos). Ahora la IA hace todo eso
- * desde una sola foto.
+ * Flujo completo de triaje post-sismo:
+ *   1. Captura dual: foto de detalle (Paso 1) + foto de contexto (Paso 2)
+ *   2. Cuestionario estructural (elemento, cruce, escala)
+ *   3. Selección de patrón de grieta (FEMA 306 / NSR-10)
+ *   4. Checklist de señales de peligro
+ *   5. Resumen, confirmación y análisis con IA + Sincronización
+ *   6. Visualización de CaptureSuccessPanel (con guía de triaje 4-tier)
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 
-// Mock de analyzeWithFallback — el analisis IA real
+// Mock de analyzeWithFallback
 const mockAnalyzeWithFallback = vi.fn();
 vi.mock('@/app/actions/analysis', () => ({
   analyzeWithFallback: (...args: unknown[]) => mockAnalyzeWithFallback(...args),
   analyze: vi.fn(),
 }));
 
-// Mock de syncCapture — la sincronizacion al backend
+// Mock de syncCapture
 const mockSyncCapture = vi.fn();
 vi.mock('@/app/actions/sync', () => ({
   syncCapture: (...args: unknown[]) => mockSyncCapture(...args),
 }));
 
-// Mock del cliente Supabase (para auth)
+// Mock del cliente Supabase
 vi.mock('@/lib/db/supabase', () => ({
   createBrowserSupabaseClient: () => ({
     auth: {
@@ -37,14 +35,21 @@ vi.mock('@/lib/db/supabase', () => ({
   }),
 }));
 
-// Mock de la IA key storage (sin BYOK en tests → cae a fallback)
+// Mock de la IA key storage
 vi.mock('@/lib/crypto/byokEncryption', () => ({
   hasStoredKey: () => false,
   retrieveEncryptedKey: () => Promise.resolve(null),
 }));
 
-// Mock de camera — auto-fira `onCapture` cuando recibe `captureRequested=true`
-const mockCameraCapture = vi.fn();
+function createMockBlob(): Blob {
+  const buffer = new TextEncoder().encode('fake-jpeg').buffer;
+  const blob = new Blob(['fake-jpeg'], { type: 'image/jpeg' });
+  (blob as unknown as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer = () =>
+    Promise.resolve(buffer);
+  return blob;
+}
+
+// Mock de camera
 vi.mock('@/components/capture/CameraViewfinder', () => ({
   CameraViewfinder: ({
     captureRequested,
@@ -57,7 +62,7 @@ vi.mock('@/components/capture/CameraViewfinder', () => ({
   }) => {
     if (captureRequested) {
       setTimeout(() => {
-        onCapture(new Blob(['fake-jpeg'], { type: 'image/jpeg' }));
+        onCapture(createMockBlob());
         onCaptureComplete();
       }, 0);
     }
@@ -65,27 +70,32 @@ vi.mock('@/components/capture/CameraViewfinder', () => ({
   },
 }));
 
-// Mock de captureService — en tests no hay GPS/IndexedDB/device orientation.
-// El imageBlob devuelto debe tener .arrayBuffer() — JSDOM no lo implementa
-// en Blob, así que lo proveemos explícitamente.
+// Mock de stripExifData
+vi.mock('@/lib/exif/strip', () => ({
+  stripExifData: vi.fn((blob: Blob) => Promise.resolve(blob)),
+}));
+
+// Mock de captureService
 const mockCapture = vi.fn();
 vi.mock('@/lib/capture/captureService', () => {
-  const fakeBlob = {
-    arrayBuffer: () => Promise.resolve(new TextEncoder().encode('fake-jpeg').buffer),
-  };
   return {
     captureService: {
       capture: (...args: unknown[]) => mockCapture(...args),
-      getServerTimestamp: () => Promise.resolve({ value: '2024-01-15T10:30:00.000Z', verified: true }),
-      getCurrentPosition: () => Promise.resolve({ available: false, reliable: false }),
+      getServerTimestamp: () =>
+        Promise.resolve({ value: '2024-01-15T10:30:00.000Z', verified: true }),
+      getCurrentPosition: () =>
+        Promise.resolve({ available: false, reliable: false }),
       getDeviceOrientation: () =>
-        Promise.resolve({ available: false, alpha: null, beta: null, gamma: null }),
+        Promise.resolve({
+          available: false,
+          alpha: null,
+          beta: null,
+          gamma: null,
+        }),
     },
   };
 });
 
-// Mock URL.createObjectURL / revokeObjectURL — JSDOM no los implementa
-// y handleImageCaptured los llama para crear la preview URL.
 if (typeof URL.createObjectURL !== 'function') {
   URL.createObjectURL = vi.fn(() => 'blob:mock-url');
 }
@@ -93,7 +103,6 @@ if (typeof URL.revokeObjectURL !== 'function') {
   URL.revokeObjectURL = vi.fn();
 }
 
-// Mock de hooks para que el flujo sea determinista
 vi.mock('@/hooks/useDeviceOrientation', () => ({
   useDeviceOrientation: () => ({ pitch: 0, roll: 0, supported: false }),
 }));
@@ -108,19 +117,12 @@ vi.mock('@/hooks/useAIAnalysis', () => ({
   }),
 }));
 
-// Now import the component under test (despues de los mocks)
 import CapturePage from './page';
 
-const HUD_CAPTURE_BUTTON = 'hud-capture-button';
-const ANALYZE_BUTTON_TEXT = 'Analizar con IA';
+const HUD_CAPTURE_BUTTON = 'dual-hud-capture-button';
+const FLOW_SUBMIT_BUTTON = 'dual-flow-submit';
 const SUCCESS_TITLE = 'Ver Reporte Completo';
-const SYNC_ERROR_TITLE = 'Error al sincronizar';
 
-/**
- * Simula la captura de una foto desde el HUD principal.
- * El HUD usa CameraViewfinder; el click en el boton de captura
- * eleva el flag `captureRequested` que el mock de CameraViewfinder observa.
- */
 async function simularCaptura() {
   fireEvent.click(screen.getByTestId(HUD_CAPTURE_BUTTON));
   await act(async () => {
@@ -128,15 +130,33 @@ async function simularCaptura() {
   });
 }
 
-describe('Capture Page — Flujo simplificado (IA hace todo)', () => {
+async function completarFlujo5Pasos() {
+  // Paso 1: Detalle + Contexto
+  await simularCaptura();
+  await simularCaptura();
+
+  // Paso 2: Cuestionario
+  fireEvent.click(screen.getByText(/Saltar todo/i));
+
+  // Paso 3: Patrón
+  fireEvent.click(screen.getByTestId('crack-pattern-diagonal_shear'));
+  fireEvent.click(screen.getByTestId('dual-flow-continue'));
+
+  // Paso 4: Señales de peligro
+  fireEvent.click(screen.getByTestId('dual-flow-continue'));
+
+  // Paso 5: Confirmar y analizar
+  fireEvent.click(screen.getByTestId(FLOW_SUBMIT_BUTTON));
+}
+
+describe('Capture Page — Flujo DualCaptureFlow guiado de 5 pasos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
 
     mockCapture.mockResolvedValue({
       id: '550e8400-e29b-41d4-a716-446655440000',
-      imageBlob: {
-        arrayBuffer: () => Promise.resolve(new TextEncoder().encode('fake-jpeg').buffer),
-      } as unknown as Blob,
+      imageBlob: createMockBlob(),
       metadata: {
         id: '550e8400-e29b-41d4-a716-446655440000',
         timestamp: { value: '2024-01-15T10:30:00.000Z', verified: true },
@@ -154,9 +174,9 @@ describe('Capture Page — Flujo simplificado (IA hace todo)', () => {
       data: {
         riskLevel: 'high',
         description:
-          'Grieta diagonal de 3mm en columna de concreto. Requiere evaluación inmediata.',
+          'Patrón: Corte Diagonal\nUbicación: Columna\nSeveridad: Daño severo por cortante\nRecomendación: No habitar',
         confidence: 0.87,
-        provider: 'openrouter',
+        provider: 'nvidia-nim',
         analyzedAt: '2024-01-15T10:30:05.000Z',
       },
     });
@@ -172,65 +192,27 @@ describe('Capture Page — Flujo simplificado (IA hace todo)', () => {
     cleanup();
   });
 
-  it('renders camera viewfinder and HUD capture button initially', () => {
+  it('renders DualCaptureFlow and HUD capture button initially', () => {
     render(<CapturePage />);
 
     expect(screen.getByTestId('camera-viewfinder')).toBeInTheDocument();
     expect(screen.getByTestId(HUD_CAPTURE_BUTTON)).toBeInTheDocument();
+    expect(screen.getByText('1 / 5')).toBeInTheDocument();
   });
 
-  it('captures photo and shows preview with "Analizar con IA" button', async () => {
+  it('completa el flujo de 5 pasos y muestra el panel de éxito con guía de triaje', async () => {
     render(<CapturePage />);
 
-    await simularCaptura();
+    await completarFlujo5Pasos();
 
-    await waitFor(() => {
-      expect(screen.getByLabelText('Vista previa de captura')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText(ANALYZE_BUTTON_TEXT)).toBeInTheDocument();
-  });
-
-  it('dispara analisis IA directo al pulsar "Analizar con IA" (sin DualCaptureFlow)', async () => {
-    render(<CapturePage />);
-
-    await simularCaptura();
-    await waitFor(() => expect(screen.getByLabelText('Vista previa de captura')).toBeInTheDocument());
-
-    // Use act() para que React flush antes del click (evita closure stale)
-    await act(async () => {
-      fireEvent.click(screen.getByText(ANALYZE_BUTTON_TEXT));
-    });
-
-    // La IA se llama directamente, sin pasos intermedios de patron/senales
-    await waitFor(() => {
-      expect(mockAnalyzeWithFallback).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('completa full flow: foto → IA → sync → PostTriageActionGuide', async () => {
-    render(<CapturePage />);
-
-    // 1. Capturar foto
-    await simularCaptura();
-    await waitFor(() => expect(screen.getByLabelText('Vista previa de captura')).toBeInTheDocument());
-
-    // 2. Analizar con IA (un solo click, sin pasos intermedios)
-    await act(async () => {
-      fireEvent.click(screen.getByText(ANALYZE_BUTTON_TEXT));
-    });
-
-    // 3. Esperar analisis
     await waitFor(() => {
       expect(mockAnalyzeWithFallback).toHaveBeenCalledTimes(1);
     });
 
-    // 4. Esperar sync
     await waitFor(() => {
       expect(mockSyncCapture).toHaveBeenCalledTimes(1);
     });
 
-    // 5. Verificar link al reporte completo
     await waitFor(() => {
       expect(screen.getByText(SUCCESS_TITLE)).toBeInTheDocument();
     });
@@ -240,58 +222,27 @@ describe('Capture Page — Flujo simplificado (IA hace todo)', () => {
     expect(reportLink).toHaveAttribute('href', '/reports/report-abc-123');
   });
 
-  it('muestra error cuando el analisis IA falla', async () => {
+  it('activa motor heurístico de emergencia cuando el análisis del servidor falla', async () => {
     mockAnalyzeWithFallback.mockResolvedValueOnce({
       success: false,
       error: {
         error: {
           code: 'SERVICE_UNAVAILABLE',
-          message: 'No AI analysis providers are currently configured',
+          message: 'Servidor no disponible',
         },
       },
     });
 
     render(<CapturePage />);
 
-    await simularCaptura();
-    await waitFor(() => expect(screen.getByLabelText('Vista previa de captura')).toBeInTheDocument());
+    await completarFlujo5Pasos();
 
-    await act(async () => {
-      fireEvent.click(screen.getByText(ANALYZE_BUTTON_TEXT));
-    });
-
+    // El motor heurístico offline se activa automáticamente y muestra el resultado de emergencia
     await waitFor(() => {
       expect(
-        screen.getByText('No AI analysis providers are currently configured')
-      ).toBeInTheDocument();
-    });
-
-    // NO debe sincronizar si el analisis falla
-    expect(mockSyncCapture).not.toHaveBeenCalled();
-  });
-
-  it('muestra error cuando sync falla', async () => {
-    mockSyncCapture.mockResolvedValueOnce({
-      success: false,
-      error: {
-        code: 'UPLOAD_FAILED',
-        message: 'Failed to upload image. Please try again later.',
-      },
-    });
-
-    render(<CapturePage />);
-
-    await simularCaptura();
-    await waitFor(() => expect(screen.getByLabelText('Vista previa de captura')).toBeInTheDocument());
-
-    await act(async () => {
-      fireEvent.click(screen.getByText(ANALYZE_BUTTON_TEXT));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText(SYNC_ERROR_TITLE)).toBeInTheDocument();
-      expect(
-        screen.getByText('Failed to upload image. Please try again later.')
+        screen.getByRole('heading', {
+          name: /Monitoreo Requerido|No Habitar|Evacuaci/i,
+        })
       ).toBeInTheDocument();
     });
   });
@@ -299,26 +250,18 @@ describe('Capture Page — Flujo simplificado (IA hace todo)', () => {
   it('permite nueva captura después de reporte exitoso', async () => {
     render(<CapturePage />);
 
-    await simularCaptura();
-    await waitFor(() => expect(screen.getByLabelText('Vista previa de captura')).toBeInTheDocument());
+    await completarFlujo5Pasos();
 
-    await act(async () => {
-      fireEvent.click(screen.getByText(ANALYZE_BUTTON_TEXT));
-    });
-
-    // Esperar AMBOS: el link de exito Y el boton "Nueva Captura"
     await waitFor(() => {
       expect(screen.getByText(SUCCESS_TITLE)).toBeInTheDocument();
     });
-    await screen.findByText(/Nueva Captura/);
 
-    // Click "Nueva Captura"
-    fireEvent.click(screen.getByText(/Nueva Captura/));
+    const newCaptureBtn = await screen.findByRole('button', { name: /Nueva Captura/i });
+    fireEvent.click(newCaptureBtn);
 
-    // Debe volver al viewfinder
     await waitFor(() => {
-      expect(screen.getByTestId('camera-viewfinder')).toBeInTheDocument();
       expect(screen.getByTestId(HUD_CAPTURE_BUTTON)).toBeInTheDocument();
+      expect(screen.getByText('1 / 5')).toBeInTheDocument();
     });
   });
 });

@@ -6,42 +6,29 @@
  *   - step="detail"  : Foto de detalle a 30-50 cm con referencia de
  *                      escala (moneda o tarjeta). Guia al usuario con
  *                      un cuadro de encuadre cercano superpuesto a la
- *                      camara en vivo.
+ *                      camara en vivo o permite subir de galería.
  *   - step="context" : Foto de contexto a ~2 metros. Encuadra columnas,
  *                      vigas y elementos estructurales del entorno.
  *                      Muestra thumbnail del step 1 para que el usuario
- *                      recuerde que ya capturo.
- *
- * A diferencia del flujo antiguo, este componente SI renderiza la
- * camara en vivo (`CameraViewfinder`) dentro del HUD. El usuario ve
- * la misma camara en el flujo de captura simple y en el dual: una
- * sola experiencia continua, sin necesidad de abrir la camara nativa
- * del SO mediante `<input type="file" capture>`. Los recuadros
- * `DetailFrame` / `ContextFrame` se dibujan como overlay encima del
- * visor.
- *
- * El componente maneja internamente el trigger de captura
- * (`captureRequested`) y el estado `isCapturing`. Cuando el usuario
- * pulsa el boton de captura, el snapshot se dispara contra la camara
- * en vivo y el blob resultante se propaga via `onCapture(blob, step)`.
+ *                      recuerde que ya capturo. Permite capturar, subir
+ *                      de galería, retomar paso 1 u omitir contexto.
  *
  * Cero emojis: SVG Lucide + tokens. ARIA live announcements para que
  * tecnologias asistivas anuncien el cambio de paso. Tap targets
  * >= 44px.
- *
- * Ref: spec R5 (detail), R6 (context), R7 (inspectionReportId compartido).
- * Ref: design Slice 3 (Phase 3) de seismic-triage-upgrade.
  */
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Camera,
   Coins,
   Maximize2,
   RefreshCw,
   Square,
+  Upload,
+  SkipForward,
 } from 'lucide-react';
 import { CameraViewfinder } from './CameraViewfinder';
 
@@ -58,11 +45,54 @@ export interface DualCaptureHUDProps {
   onCapture: (blob: Blob, step: DualCaptureStep) => void;
   /** Callback invocado al pulsar "Retomar foto 1" (solo en step=context). */
   onRetakeStep1: () => void;
+  /** Callback opcional al pulsar "Omitir contexto" (solo en step=context). */
+  onSkipContext?: () => void;
   /** Clases Tailwind adicionales para override externo. */
   className?: string;
 }
 
 const DEFAULT_ARIA_LABEL = 'Captura dual de fotos';
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+const ACCEPTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
+async function normalizeImageForAnalysis(file: File): Promise<Blob> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    bitmap = await createImageBitmap(file);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('No se pudo inicializar el contexto de canvas.');
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('No se pudo convertir la imagen a JPEG.'));
+        }
+      },
+      'image/jpeg',
+      0.9
+    );
+  });
+}
 
 /**
  * Marco de encuadre cercano (step=detail) con marcador de escala.
@@ -72,30 +102,30 @@ function DetailFrame() {
   return (
     <div
       data-testid="dual-hud-scale-box"
-      className="pointer-events-none absolute inset-3 sm:inset-4 flex items-center justify-center"
+      className="pointer-events-none absolute inset-2 sm:inset-4 flex items-center justify-center"
     >
-      <div className="relative aspect-square w-full max-w-[80%] max-h-[80%] rounded-2xl border-2 border-dashed border-triage-monitoring">
-        {/* Esquinas resaltadas */}
+      <div className="relative aspect-square w-full max-w-[85%] max-h-[85%] rounded-2xl border-2 border-dashed border-status-moderate">
+        {/* Esquinas resaltadas en oro/amarillo */}
         <span
           aria-hidden="true"
-          className="absolute -top-1 -left-1 h-4 w-4 border-t-2 border-l-2 border-triage-monitoring-fg"
+          className="absolute -top-1 -left-1 h-5 w-5 border-t-4 border-l-4 border-status-moderate rounded-tl"
         />
         <span
           aria-hidden="true"
-          className="absolute -top-1 -right-1 h-4 w-4 border-t-2 border-r-2 border-triage-monitoring-fg"
+          className="absolute -top-1 -right-1 h-5 w-5 border-t-4 border-r-4 border-status-moderate rounded-tr"
         />
         <span
           aria-hidden="true"
-          className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-triage-monitoring-fg"
+          className="absolute -bottom-1 -left-1 h-5 w-5 border-b-4 border-l-4 border-status-moderate rounded-bl"
         />
         <span
           aria-hidden="true"
-          className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-triage-monitoring-fg"
+          className="absolute -bottom-1 -right-1 h-5 w-5 border-b-4 border-r-4 border-status-moderate rounded-br"
         />
-        {/* Texto guia sobre banda semitransparente para no bloquear la grieta */}
-        <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[90%] items-center justify-center gap-1 rounded-md bg-black/65 px-2 py-1 text-center text-[11px] font-medium text-triage-monitoring-fg sm:text-xs">
-          <Coins className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Coloca una moneda o tarjeta al lado de la grieta</span>
+        {/* Texto guia sobre banda semitransparente */}
+        <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[92%] items-center justify-center gap-1.5 rounded-xl bg-black/80 px-3 py-2 text-center text-xs font-semibold text-white sm:text-sm shadow-xl backdrop-blur-md border border-white/20">
+          <Coins className="h-4 w-4 text-status-moderate shrink-0" aria-hidden="true" />
+          <span>Detalle (30-50 cm) · Coloca una moneda o tarjeta al lado</span>
         </span>
       </div>
     </div>
@@ -110,28 +140,28 @@ function ContextFrame() {
   return (
     <div
       data-testid="dual-hud-context-frame"
-      className="pointer-events-none absolute inset-3 sm:inset-4 flex items-center justify-center"
+      className="pointer-events-none absolute inset-2 sm:inset-4 flex items-center justify-center"
     >
-      <div className="relative aspect-video w-full max-w-[90%] max-h-[85%] rounded-2xl border-2 border-dashed border-triage-habitable">
+      <div className="relative aspect-video w-full max-w-[92%] max-h-[88%] rounded-2xl border-2 border-dashed border-status-minor">
         <span
           aria-hidden="true"
-          className="absolute -top-1 -left-1 h-4 w-4 border-t-2 border-l-2 border-triage-habitable-fg"
+          className="absolute -top-1 -left-1 h-5 w-5 border-t-4 border-l-4 border-status-minor rounded-tl"
         />
         <span
           aria-hidden="true"
-          className="absolute -top-1 -right-1 h-4 w-4 border-t-2 border-r-2 border-triage-habitable-fg"
+          className="absolute -top-1 -right-1 h-5 w-5 border-t-4 border-r-4 border-status-minor rounded-tr"
         />
         <span
           aria-hidden="true"
-          className="absolute -bottom-1 -left-1 h-4 w-4 border-b-2 border-l-2 border-triage-habitable-fg"
+          className="absolute -bottom-1 -left-1 h-5 w-5 border-b-4 border-l-4 border-status-minor rounded-bl"
         />
         <span
           aria-hidden="true"
-          className="absolute -bottom-1 -right-1 h-4 w-4 border-b-2 border-r-2 border-triage-habitable-fg"
+          className="absolute -bottom-1 -right-1 h-5 w-5 border-b-4 border-r-4 border-status-minor rounded-br"
         />
-        <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[90%] items-center justify-center gap-1 rounded-md bg-black/65 px-2 py-1 text-center text-[11px] font-medium text-triage-habitable-fg sm:text-xs">
-          <Maximize2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Enmarca columnas y vigas del entorno</span>
+        <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[92%] items-center justify-center gap-1.5 rounded-xl bg-black/80 px-3 py-2 text-center text-xs font-semibold text-white sm:text-sm shadow-xl backdrop-blur-md border border-white/20">
+          <Maximize2 className="h-4 w-4 text-status-minor shrink-0" aria-hidden="true" />
+          <span>Contexto (2 metros) · Enmarca columnas, vigas y losas</span>
         </span>
       </div>
     </div>
@@ -163,28 +193,24 @@ function Step1Thumbnail({ src }: { src: string }) {
 
 /**
  * DualCaptureHUD — Componente publico.
- *
- * Mantiene internamente:
- *   - `captureRequested`: flag que se eleva a `true` cuando el usuario
- *     pulsa el boton de captura, y vuelve a `false` cuando
- *     `CameraViewfinder` confirma el snapshot (via `onCaptureComplete`).
- *   - `isCapturing`: estado intermedio entre el click y la propagacion
- *     del blob a `onCapture`, usado para deshabilitar el boton mientras
- *     se procesa la captura y evitar dobles disparos.
  */
 export function DualCaptureHUD({
   step,
   detailPreviewUrl = null,
   onCapture,
   onRetakeStep1,
+  onSkipContext,
   className = '',
 }: DualCaptureHUDProps) {
   const [captureRequested, setCaptureRequested] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCaptureClick = useCallback(() => {
     if (isCapturing) return;
+    setUploadError(null);
     setIsCapturing(true);
     setCaptureRequested(true);
   }, [isCapturing]);
@@ -204,6 +230,49 @@ export function DualCaptureHUD({
   const handleCameraError = useCallback((message: string | null) => {
     setCameraError(message);
   }, []);
+
+  const handleUploadClick = useCallback(() => {
+    setUploadError(null);
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        setUploadError(
+          `Formato no soportado (${file.type || 'desconocido'}). Usa JPG, PNG, WebP o HEIC.`
+        );
+        return;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setUploadError(
+          `La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)}MB. Máximo permitido: 10MB.`
+        );
+        return;
+      }
+
+      setIsCapturing(true);
+      setUploadError(null);
+
+      try {
+        const normalizedBlob = await normalizeImageForAnalysis(file);
+        onCapture(normalizedBlob, step);
+      } catch (err) {
+        setUploadError(
+          err instanceof Error
+            ? err.message
+            : 'No se pudo procesar la imagen seleccionada.'
+        );
+      } finally {
+        setIsCapturing(false);
+      }
+    },
+    [onCapture, step]
+  );
 
   const isContext = step === 'context';
 
@@ -252,7 +321,7 @@ export function DualCaptureHUD({
       {/* Visor de camara en vivo con overlay del marco segun paso */}
       <div
         data-testid="dual-hud-camera"
-        className="relative w-full flex-1 min-h-[60vh]"
+        className="relative w-full flex-1 min-h-[50vh] sm:min-h-[55vh]"
       >
         <CameraViewfinder
           captureRequested={captureRequested}
@@ -261,12 +330,12 @@ export function DualCaptureHUD({
           onError={handleCameraError}
         />
         {isContext ? <ContextFrame /> : <DetailFrame />}
-        {cameraError && (
+        {(cameraError || uploadError) && (
           <p
             role="alert"
             className="mt-2 text-center text-xs text-status-critical-fg"
           >
-            {cameraError}
+            {cameraError || uploadError}
           </p>
         )}
       </div>
@@ -275,7 +344,7 @@ export function DualCaptureHUD({
       <p className="text-sm leading-snug text-text-secondary">
         {isContext
           ? 'Aléjate unos 2 metros. Enmarca columnas, vigas y elementos estructurales del entorno para dar contexto del daño.'
-          : 'Acercate a 30-50 cm de la grieta. Coloca una moneda o tarjeta al lado para tener referencia de escala.'}
+          : 'Acércate a 30-50 cm de la grieta. Coloca una moneda o tarjeta al lado para tener referencia de escala.'}
       </p>
 
       {/* Thumbnail del step 1 cuando estamos en step 2 */}
@@ -283,8 +352,19 @@ export function DualCaptureHUD({
         <Step1Thumbnail src={detailPreviewUrl} />
       )}
 
+      {/* Input de archivo oculto para carga desde galeria */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES.join(',')}
+        onChange={handleFileChange}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       {/* Botones de accion */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center pt-1">
         <button
           type="button"
           data-testid="dual-hud-capture-button"
@@ -293,23 +373,51 @@ export function DualCaptureHUD({
           aria-label={
             isContext ? 'Capturar foto de contexto' : 'Capturar foto de detalle'
           }
-          className="flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-triage-monitoring-border bg-triage-monitoring px-4 py-3 text-sm font-semibold text-triage-monitoring-fg shadow-sm transition-all duration-150 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-triage-monitoring-border focus:ring-offset-2 focus:ring-offset-surface-0 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-[52px] flex-1 items-center justify-center gap-2.5 rounded-xl bg-brand-cta px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-cta/25 transition-all duration-150 hover:bg-brand-cta/90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Square className="h-5 w-5" aria-hidden="true" focusable="false" />
-          <span>{isContext ? 'Capturar contexto' : 'Capturar detalle'}</span>
+          <Camera className="h-5 w-5" aria-hidden="true" focusable="false" />
+          <span>{isContext ? 'Capturar foto de contexto' : 'Capturar foto de detalle'}</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="dual-hud-upload-button"
+          onClick={handleUploadClick}
+          disabled={isCapturing}
+          aria-label="Subir foto desde galería"
+          className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl border border-border-default bg-surface-2 px-4 py-3 text-sm font-semibold text-text-primary transition-all duration-150 hover:bg-surface-3 hover:border-border-strong active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0 disabled:opacity-50"
+        >
+          <Upload className="h-5 w-5 text-brand-accent" aria-hidden="true" focusable="false" />
+          <span className="hidden sm:inline">Subir de galería</span>
+          <span className="sm:hidden">Galería</span>
         </button>
 
         {isContext && (
-          <button
-            type="button"
-            data-testid="dual-hud-retake-step1"
-            onClick={onRetakeStep1}
-            aria-label="Retomar foto 1"
-            className="flex min-h-[56px] items-center justify-center gap-2 rounded-xl border border-border-default bg-surface-2 px-4 py-3 text-sm font-semibold text-text-primary transition-all duration-150 hover:bg-surface-3 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" focusable="false" />
-            <span>Retomar foto 1</span>
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              data-testid="dual-hud-retake-step1"
+              onClick={onRetakeStep1}
+              aria-label="Retomar foto 1"
+              className="flex min-h-[52px] flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-xl border border-border-default bg-surface-2 px-3.5 py-3 text-xs sm:text-sm font-semibold text-text-primary transition-all duration-150 hover:bg-surface-3 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" focusable="false" />
+              <span>Retomar 1</span>
+            </button>
+
+            {onSkipContext && (
+              <button
+                type="button"
+                data-testid="dual-hud-skip-context"
+                onClick={onSkipContext}
+                aria-label="Omitir foto de contexto"
+                className="flex min-h-[52px] flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-xl border border-border-subtle bg-surface-1 px-3.5 py-3 text-xs sm:text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 active:scale-[0.98] transition-all"
+              >
+                <SkipForward className="h-4 w-4" aria-hidden="true" focusable="false" />
+                <span>Omitir</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
     </section>

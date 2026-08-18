@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { ServiceWorkerUpdater } from '@/components/sync/ServiceWorkerUpdater';
 
 export const metadata: Metadata = {
   title: 'Grietas Vivas - Triaje Estructural Post-Sismo',
@@ -27,6 +28,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-[100dvh] bg-surface-0 text-text-primary antialiased selection:bg-brand-accent/20 selection:text-brand-accent overflow-x-hidden"
       >
+        <ServiceWorkerUpdater />
         {children}
       </body>
     </html>

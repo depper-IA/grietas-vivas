@@ -212,6 +212,25 @@ export class NvidiaNimProvider implements IAIProvider {
     try {
       const base64Image = payload.image.toString('base64');
 
+      const messageContent: Array<
+        | { type: 'text'; text: string }
+        | { type: 'image_url'; image_url: { url: string } }
+      > = [
+        { type: 'text', text: payload.prompt },
+        {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${base64Image}` },
+        },
+      ];
+
+      if (payload.contextImage) {
+        const contextBase64 = payload.contextImage.toString('base64');
+        messageContent.push({
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${contextBase64}` },
+        });
+      }
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -226,13 +245,7 @@ export class NvidiaNimProvider implements IAIProvider {
           messages: [
             {
               role: 'user',
-              content: [
-                { type: 'text', text: payload.prompt },
-                {
-                  type: 'image_url',
-                  image_url: { url: `data:image/jpeg;base64,${base64Image}` },
-                },
-              ],
+              content: messageContent,
             },
           ],
         }),

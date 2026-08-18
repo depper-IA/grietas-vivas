@@ -119,7 +119,7 @@ export function CrackPatternSelector({
       aria-label={ariaLabel}
       className={[
         'w-full',
-        'grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4',
+        'grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5',
         className,
       ]
         .filter(Boolean)
@@ -141,39 +141,39 @@ export function CrackPatternSelector({
             onClick={handleSelect(pattern)}
             onKeyDown={handleKeyDown(pattern)}
             className={[
-              'group relative flex min-h-[140px] flex-col items-stretch gap-2',
+              'group relative flex min-h-[148px] flex-col justify-between items-stretch gap-2',
               'rounded-xl border p-3 text-left transition-all duration-150',
               'focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0',
               selected
-                ? 'border-brand-accent bg-surface-2 shadow-[0_0_0_1px_var(--brand-accent)]'
-                : 'border-border-default bg-surface-1 hover:border-border-strong hover:bg-surface-2',
+                ? 'border-brand-accent bg-brand-accent/5 ring-2 ring-brand-accent shadow-sm'
+                : 'border-border-default bg-surface-2/60 hover:border-border-strong hover:bg-surface-2',
               'active:scale-[0.98]',
             ].join(' ')}
           >
             {/* Diagrama + badge (header) */}
             <div className="flex items-start justify-between gap-2">
-              <div className="rounded-md border border-border-subtle bg-surface-2 p-1.5">
+              <div className="rounded-lg border border-border-subtle bg-surface-1 p-1.5 shadow-inner">
                 <PatternDiagram pattern={pattern} />
               </div>
               <SeverityBadge level={severity} size="sm" />
             </div>
 
-            {/* Titulo */}
-            <h3 className="text-sm font-semibold leading-tight text-text-primary">
-              {meta.labelEs}
-            </h3>
+            {/* Titulo + Guidance */}
+            <div className="space-y-1">
+              <h3 className="text-xs sm:text-sm font-bold leading-snug text-text-primary">
+                {meta.labelEs}
+              </h3>
+              <p className="text-[11px] leading-tight text-text-secondary line-clamp-3">
+                {meta.guidanceEs}
+              </p>
+            </div>
 
-            {/* Guidance */}
-            <p className="text-xs leading-snug text-text-muted">
-              {meta.guidanceEs}
-            </p>
-
-            {/* Indicador de seleccion (esquina inferior) */}
+            {/* Indicador de seleccion (esquina inferior derecha) */}
             <span
               aria-hidden="true"
               className={[
-                'absolute bottom-2 right-2 h-2 w-2 rounded-full',
-                selected ? 'bg-brand-accent' : 'bg-transparent',
+                'absolute bottom-2 right-2 h-2.5 w-2.5 rounded-full transition-all',
+                selected ? 'bg-brand-accent ring-2 ring-white scale-110' : 'bg-transparent',
               ].join(' ')}
             />
           </button>

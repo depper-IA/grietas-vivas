@@ -38,6 +38,25 @@ export class MinimaxProvider implements IAIProvider {
       const base64Image = payload.image.toString('base64');
       const endpoint = `${this.baseUrl}/chat/completions`;
 
+      const messageContent: Array<
+        | { type: 'text'; text: string }
+        | { type: 'image_url'; image_url: { url: string } }
+      > = [
+        { type: 'text', text: payload.prompt },
+        {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${base64Image}` },
+        },
+      ];
+
+      if (payload.contextImage) {
+        const contextBase64 = payload.contextImage.toString('base64');
+        messageContent.push({
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${contextBase64}` },
+        });
+      }
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -50,13 +69,7 @@ export class MinimaxProvider implements IAIProvider {
           messages: [
             {
               role: 'user',
-              content: [
-                { type: 'text', text: payload.prompt },
-                {
-                  type: 'image_url',
-                  image_url: { url: `data:image/jpeg;base64,${base64Image}` },
-                },
-              ],
+              content: messageContent,
             },
           ],
         }),
@@ -75,10 +88,10 @@ export class MinimaxProvider implements IAIProvider {
       }
 
       const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content ?? '';
+      const responseText = data?.choices?.[0]?.message?.content ?? '';
 
       return {
-        content,
+        content: responseText,
         metadata: {
           model: data?.model ?? this.model,
           provider: 'minimax',

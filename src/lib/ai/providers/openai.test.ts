@@ -148,6 +148,25 @@ describe('OpenAIProvider', () => {
       });
     });
 
+    it('includes second image when contextImage is provided', async () => {
+      fetchMock.mockResolvedValue(createSuccessResponse());
+      const image1 = Buffer.from('image-1-bytes');
+      const image2 = Buffer.from('image-2-bytes');
+      const payload = createPayload({ image: image1, contextImage: image2 });
+
+      await provider.analyze(payload);
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const content = body.messages[0].content;
+
+      expect(content).toHaveLength(3);
+      expect(content[0].type).toBe('image_url');
+      expect(content[0].image_url.url).toBe(`data:image/jpeg;base64,${image1.toString('base64')}`);
+      expect(content[1].type).toBe('image_url');
+      expect(content[1].image_url.url).toBe(`data:image/jpeg;base64,${image2.toString('base64')}`);
+      expect(content[2].type).toBe('text');
+    });
+
     it('returns empty string if no choices in response', async () => {
       fetchMock.mockResolvedValue({
         ok: true,

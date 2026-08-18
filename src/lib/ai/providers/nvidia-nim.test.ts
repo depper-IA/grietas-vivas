@@ -164,6 +164,24 @@ describe('NvidiaNimProvider', () => {
         `data:image/jpeg;base64,${expectedBase64}`,
       );
     });
+
+    it('incluye segunda imagen cuando contextImage esta presente', async () => {
+      const img1 = Buffer.from('img-1-nim');
+      const img2 = Buffer.from('img-2-nim');
+      await provider.analyze({ image: img1, contextImage: img2, prompt: 'x', maxTokens: 512 });
+
+      const chatCall = mockFetch.mock.calls.find((c) =>
+        c[0].includes('/v1/chat/completions'),
+      );
+      const body = JSON.parse(chatCall![1].body);
+      expect(body.messages[0].content).toHaveLength(3);
+      expect(body.messages[0].content[1].image_url.url).toBe(
+        `data:image/jpeg;base64,${img1.toString('base64')}`,
+      );
+      expect(body.messages[0].content[2].image_url.url).toBe(
+        `data:image/jpeg;base64,${img2.toString('base64')}`,
+      );
+    });
   });
 
   describe('analyze — fallback chain (multi-modelo)', () => {

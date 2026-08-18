@@ -19,6 +19,8 @@ export {
   type DualCaptureFlowResult,
   type DualCaptureFlowStep,
   DEFAULT_DANGER_SIGNALS,
+  DEFAULT_STRUCTURAL_CONTEXT,
 } from './DualCaptureFlow';
+export { StructuralQuestionnaire } from './StructuralQuestionnaire';
 export { CrackPatternSelector, type CrackPatternSelectorProps } from './CrackPatternSelector';
 export { DangerSignalsChecklist, type DangerSignalsChecklistProps } from './DangerSignalsChecklist';

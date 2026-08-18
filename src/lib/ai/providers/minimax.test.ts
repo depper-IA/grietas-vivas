@@ -97,6 +97,29 @@ describe('MinimaxProvider', () => {
       expect(result.metadata?.provider).toBe('minimax');
       expect(result.metadata?.model).toBe('MiniMax-M3');
     });
+
+    it('sends two images in messages when contextImage is provided', async () => {
+      const responseBody = createSuccessResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => responseBody,
+      });
+
+      const img1 = Buffer.from('img-1-minimax');
+      const img2 = Buffer.from('img-2-minimax');
+      await provider.analyze({
+        image: img1,
+        contextImage: img2,
+        prompt: 'Analyze',
+        maxTokens: 512,
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.messages[0].content).toHaveLength(3);
+      expect(body.messages[0].content[1].image_url.url).toBe(`data:image/jpeg;base64,${img1.toString('base64')}`);
+      expect(body.messages[0].content[2].image_url.url).toBe(`data:image/jpeg;base64,${img2.toString('base64')}`);
+    });
   });
 
   describe('analyze — error handling', () => {

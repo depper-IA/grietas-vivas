@@ -3,11 +3,14 @@
  *
  * Uses domain-specific prompt engineering to extract detailed structural
  * information from multimodal AI models. Asks for crack classification,
- * estimated dimensions, pattern type, and severity assessment.
+ * estimated dimensions, pattern type, and severity assessment based on
+ * NSR-10 (Colombia) and FEMA 306 standards.
  *
  * Combined with user-provided structural context (element type, load-bearing
  * status, crack traversal) to produce a weighted risk assessment.
  */
+
+import { z } from 'zod';
 
 /** User-provided structural context from the pre-analysis questionnaire. */
 export interface StructuralContext {
@@ -29,94 +32,128 @@ export interface StructuralContext {
   crackFloor?: number;
 }
 
+/** Zod schema for runtime validation of structural context */
+export const structuralContextSchema = z.object({
+  elementType: z.enum([
+    'column',
+    'beam',
+    'load-bearing-wall',
+    'partition-wall',
+    'slab',
+    'foundation',
+    'other',
+  ]),
+  crossesFullSpan: z.boolean(),
+  hasScaleReference: z.boolean(),
+  scaleReferenceType: z.enum(['coin', 'card', 'ruler', 'hand', 'none']).optional(),
+  estimatedDistance: z.number().positive().optional(),
+  recentGrowth: z.boolean(),
+  buildingFloors: z.number().int().positive().optional(),
+  crackFloor: z.number().int().optional(),
+});
+
 /**
  * Build the specialized structural analysis prompt.
  * Includes the user's structural context to help the AI make a better assessment.
+ * Supports multi-image analysis (detail photo + structural context photo).
  */
-export function buildStructuralPrompt(context: StructuralContext): string {
+export function buildStructuralPrompt(context: StructuralContext, hasContextImage?: boolean): string {
   const contextSection = buildContextSection(context);
   const scaleSection = buildScaleSection(context);
+  const imageGuidanceSection = buildImageGuidanceSection(hasContextImage);
 
-  return `You are a structural damage assessment AI specialized in post-earthquake building inspection in Colombia. 
+  return `Eres un perito e ingeniero especialista en evaluación forense de daños y triaje estructural post-sismo (NSR-10 Colombia / FEMA 306).
 
-STRUCTURAL CONTEXT PROVIDED BY THE USER:
+CONTEXTO ESTRUCTURAL SUMINISTRADO POR EL USUARIO:
 ${contextSection}
 ${scaleSection}
 
-ANALYSIS INSTRUCTIONS:
-Examine this photograph of building damage and provide a detailed structural assessment.
+${imageGuidanceSection}
 
-1. CRACK CLASSIFICATION:
-   - Type: Identify if this is a hairline crack, structural crack, shear crack (diagonal), flexural crack (horizontal), settlement crack, or surface/cosmetic crack.
-   - Pattern: Is it singular, branching (map cracking), stepped (following mortar joints), or through-crack?
-   - Orientation: Vertical, horizontal, diagonal (specify approximate angle), or mixed.
+MATRIZ OFICIAL DE DAÑOS Y SEVERIDAD SÍSMICA (NSR-10 / FEMA 306):
+1. CRÍTICO (riskLevel: "critical"):
+   - Grietas en "X" o grietas diagonales cruzadas en muros de carga/mampostería (falla por cortante sísmico bidireccional).
+   - Daño en elementos estructurales principales: vigas, columnas o nudos viga-columna (grietas diagonales por cortante o flexión, que atraviesan la sección).
+   - Concreto desprendido (spalling) con acero de refuerzo/varilla visible o corroída.
+   - Desplazamiento relativo entre bordes de la grieta, columnas o muros inclinados, aplastados o pandeados.
+2. ALTO (riskLevel: "high"):
+   - Grieta diagonal individual (≈45°) o grietas en escalera que atraviesan ladrillos/bloques en muros portantes.
+   - Columna o viga con grieta > 2mm de apertura o que atraviesa gran parte de la sección.
+   - Grietas horizontales extensas en muros por empujes o flexión fuera del plano.
+   - Grietas profundas con separación visible entre muro y losa o columna.
+3. MEDIO / MODERADO (riskLevel: "medium"):
+   - Fisuras diagonales desde esquinas de puertas o ventanas por concentración de esfuerzos.
+   - Separación vertical en la junta muro-columna (muro divisorio no estructural).
+   - Grietas en muros divisorios/tabiques sin compromiso de elementos portantes.
+   - Grieta horizontal en la parte superior del muro bajo la viga o losa.
+4. BAJO (riskLevel: "low"):
+   - Fisuras superficiales capilares (<0.3 mm) en revoque, estuco o pintura (daño meramente cosmético).
+   - Fisuras verticales finas por retracción de fraguado o dilatación térmica.
 
-2. ESTIMATED DIMENSIONS (visual estimation):
-   - Estimated width: in millimeters (use the scale reference if visible, otherwise estimate relative to surface texture)
-   - Estimated length: in centimeters
-   - Depth assessment: surface-only, partial-depth, or appears to go through the element
+REGLAS DE EVALUACIÓN Y SALIDA:
+- Todo el reporte debe estar 100% en español profesional.
+- Sé directo, contundente y técnicamente certero. Si observas una grieta en "X", nómbrala explícitamente como "Grietas en X por cortante sísmico" y califícala como "critical".
+- Redacta el campo "description" estructurado exactamente en estas 4 líneas:
+  Patrón: [Tipo exacto de grieta según la matriz: ej. Grietas en X / Diagonal a 45° / Escalonada / Capilar]
+  Ubicación: [Elemento afectado: muro de carga, columna, viga, nudo, tabique divisorio, etc.]
+  Severidad: [Nivel de riesgo técnico y justificación física del daño observado según NSR-10 / FEMA 306]
+  Recomendación: [Indicación clara: ej. EVACUAR INMEDIATAMENTE / NO HABITAR y solicitar peritaje urgente / Monitorear / Habitable]
+- "confidence": número entre 0.0 y 1.0 según la claridad visual de las imágenes.
 
-3. SEVERITY INDICATORS:
-   - Is there displacement (one side higher/lower than the other)?
-   - Is there spalling (concrete chunks falling off)?
-   - Is there exposed reinforcement (rebar visible)?
-   - Is there water infiltration or staining around the crack?
-   - Is the crack active (fresh edges) or dormant (filled with dust/paint)?
-
-4. RISK ASSESSMENT:
-   Based on ALL the above factors combined with the structural context:
-   - riskLevel: one of "low", "medium", "high", "critical"
-   - Use the STRUCTURAL WEIGHTING rules below
-
-STRUCTURAL WEIGHTING RULES:
-- Column/beam/foundation + diagonal crack + crosses full span = CRITICAL (immediate danger)
-- Column/beam + any crack > 2mm width = HIGH minimum
-- Load-bearing wall + horizontal/diagonal crack + crosses full span = HIGH minimum
-- Partition wall + any crack = maximum MEDIUM (non-structural)
-- Recent growth after earthquake = increase one level
-- Exposed rebar or displacement = CRITICAL regardless of element
-- Surface/cosmetic crack on any element = LOW maximum
-- Hairline crack (< 0.3mm) on partition = LOW
-
-RESPONSE FORMAT (JSON only):
+FORMATO DE RESPUESTA (ÚNICAMENTE JSON VÁLIDO):
 {
-  "riskLevel": "low|medium|high|critical",
-  "description": "Detailed assessment in Spanish (max 2000 chars). Include: crack type, estimated dimensions, severity factors observed, structural implications, and recommended immediate action.",
+  "riskLevel": "low" | "medium" | "high" | "critical",
+  "description": "Patrón: ...\\nUbicación: ...\\nSeveridad: ...\\nRecomendación: ...",
   "confidence": 0.0-1.0,
-  "crackType": "hairline|structural|shear|flexural|settlement|cosmetic",
+  "crackType": "hairline" | "structural" | "shear" | "flexural" | "settlement" | "cosmetic",
   "estimatedWidthMm": number or null,
   "estimatedLengthCm": number or null,
   "crossesFullSpan": true/false,
   "hasDisplacement": true/false,
   "hasExposedRebar": true/false,
-  "immediateAction": "none|monitor|evacuate|restrict-access|engineer-required"
+  "immediateAction": "none" | "monitor" | "evacuate" | "restrict-access" | "engineer-required"
 }
 
-Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.`;
+Responde ÚNICAMENTE con el objeto JSON válido. No uses bloques markdown ni texto explicativo fuera del JSON.`;
+}
+
+function buildImageGuidanceSection(hasContextImage?: boolean): string {
+  if (hasContextImage) {
+    return `FOTOGRAFÍAS ADJUNTAS PARA EL ANÁLISIS MULTIMODAL:
+- Foto 1 (Detalle de la grieta): Macro/primer plano con calibración de escala para medir apertura (mm), longitud y profundidad.
+- Foto 2 (Contexto estructural del entorno): Vista amplia que muestra el elemento completo y sus conexiones (vigas, columnas, nudos, losas o muros colindantes).
+INSTRUCCIÓN: Evalúa cómo se correlaciona la grieta de detalle con el sistema estructural global visible en la foto de contexto.`;
+  }
+
+  return `FOTOGRAFÍA ADJUNTA PARA EL ANÁLISIS:
+- Foto 1 (Detalle de la grieta): Evalúa la morfología, apertura, trayectoria y profundidad del daño visible.`;
 }
 
 function buildContextSection(context: StructuralContext): string {
   const elementLabels: Record<string, string> = {
-    'column': 'Structural column',
-    'beam': 'Structural beam',
-    'load-bearing-wall': 'Load-bearing wall',
-    'partition-wall': 'Non-structural partition wall',
-    'slab': 'Floor/ceiling slab',
-    'foundation': 'Foundation element',
-    'other': 'Other/unknown element',
+    'column': 'Columna estructural',
+    'beam': 'Viga estructural',
+    'load-bearing-wall': 'Muro de carga / portante',
+    'partition-wall': 'Muro divisorio / tabique no estructural',
+    'slab': 'Losa de entrepiso / techo',
+    'foundation': 'Elemento de cimentación',
+    'other': 'Otro / elemento no determinado',
   };
 
   const lines: string[] = [
-    `- Element type: ${elementLabels[context.elementType] || context.elementType}`,
-    `- Crack crosses full span: ${context.crossesFullSpan ? 'YES (serious indicator)' : 'No'}`,
-    `- Recent growth post-earthquake: ${context.recentGrowth ? 'YES (active progression)' : 'No / Unknown'}`,
+    `- Tipo de elemento: ${elementLabels[context.elementType] || context.elementType}`,
+    `- La grieta cruza toda la sección/longitud: ${context.crossesFullSpan ? 'SÍ (indicador grave de compromiso estructural)' : 'No'}`,
+    `- Crecimiento reciente post-sismo: ${context.recentGrowth ? 'SÍ (progresión activa)' : 'No / Desconocido'}`,
   ];
 
   if (context.buildingFloors) {
-    lines.push(`- Building height: ${context.buildingFloors} floors`);
+    lines.push(`- Altura de la edificación: ${context.buildingFloors} pisos`);
   }
   if (context.crackFloor) {
-    lines.push(`- Crack located on floor: ${context.crackFloor}`);
+    lines.push(`- Grieta ubicada en el piso: ${context.crackFloor}`);
+  }
+  if (context.estimatedDistance) {
+    lines.push(`- Distancia aproximada de captura: ${context.estimatedDistance} metros`);
   }
 
   return lines.join('\n');
@@ -124,19 +161,19 @@ function buildContextSection(context: StructuralContext): string {
 
 function buildScaleSection(context: StructuralContext): string {
   if (!context.hasScaleReference) {
-    return `\nSCALE REFERENCE: None provided. Estimate dimensions relative to surface texture (typical brick = 6cm face, typical block = 19cm face).`;
+    return `REFERENCIA DE ESCALA: Ninguna específica en la foto. Estima dimensiones relativas a texturas constructivas estándar (ladrillo tolete ≈ 6 cm alto, bloque de concreto ≈ 19 cm alto, junta de mortero ≈ 1.5 cm).`;
   }
 
   const references: Record<string, string> = {
-    'coin': 'Colombian 500 peso coin (diameter: 23.7mm) or similar coin visible in photo',
-    'card': 'Standard credit/ID card (85.6mm × 53.98mm) visible in photo',
-    'ruler': 'Ruler or measuring tape visible in photo',
-    'hand': 'Human hand (average palm width ~8cm) visible for scale',
-    'none': 'No specific reference',
+    'coin': 'Moneda de 500 pesos colombianos (diámetro exacto: 23.7 mm) visible en la foto de detalle.',
+    'card': 'Tarjeta estándar de crédito/documento (85.6 mm × 53.98 mm) visible en la foto de detalle.',
+    'ruler': 'Regla graduada o cinta métrica milimetrada visible en la foto de detalle.',
+    'hand': 'Mano humana (ancho de palma promedio ≈ 8.0 cm) visible para escala aproximada.',
+    'none': 'Sin objeto de referencia específico.',
   };
 
   const refType = context.scaleReferenceType || 'none';
-  return `\nSCALE REFERENCE: ${references[refType]}. Use this to calibrate your dimension estimates.`;
+  return `REFERENCIA DE ESCALA CALIBRADA: ${references[refType]} Utilízala para calibrar la estimación de apertura (ancho en mm) y longitud (cm).`;
 }
 
 /**
@@ -146,6 +183,8 @@ export interface StructuralAnalysisResult {
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   description: string;
   confidence: number;
+  provider?: string;
+  analyzedAt?: string;
   crackType?: string;
   estimatedWidthMm?: number | null;
   estimatedLengthCm?: number | null;
@@ -159,10 +198,10 @@ export interface StructuralAnalysisResult {
  * Rule engine: Apply structural weighting rules to adjust the AI's raw assessment.
  * This catches cases where the AI might underestimate risk on critical elements.
  */
-export function applyStructuralRules(
-  aiResult: StructuralAnalysisResult,
+export function applyStructuralRules<T extends StructuralAnalysisResult>(
+  aiResult: T,
   context: StructuralContext,
-): StructuralAnalysisResult {
+): T {
   let adjustedRisk = aiResult.riskLevel;
   const riskOrder = ['low', 'medium', 'high', 'critical'] as const;
   const currentIndex = riskOrder.indexOf(adjustedRisk);
@@ -199,8 +238,13 @@ export function applyStructuralRules(
     if (currentIndex < 2) adjustedRisk = 'high'; // minimum HIGH
   }
 
-  // Rule 5: Partition wall caps at MEDIUM
-  if (context.elementType === 'partition-wall' && riskOrder.indexOf(adjustedRisk) > 1) {
+  // Rule 5: Partition wall caps at MEDIUM (unless critical hazard like exposed rebar or displacement)
+  if (
+    context.elementType === 'partition-wall' &&
+    !aiResult.hasExposedRebar &&
+    !aiResult.hasDisplacement &&
+    riskOrder.indexOf(adjustedRisk) > 1
+  ) {
     adjustedRisk = 'medium';
   }
 
@@ -218,11 +262,19 @@ export function applyStructuralRules(
     adjustedRisk = 'low';
   }
 
+  let finalDescription = aiResult.description;
+  if (adjustedRisk !== aiResult.riskLevel) {
+    const note = `\n\n[Nota: Nivel de riesgo ajustado de "${aiResult.riskLevel}" a "${adjustedRisk}" por el motor de reglas estructurales basado en el contexto proporcionado.]`;
+    if ((finalDescription + note).length <= 2000) {
+      finalDescription = `${finalDescription}${note}`;
+    } else {
+      finalDescription = `${finalDescription.slice(0, 2000 - note.length)}${note}`;
+    }
+  }
+
   return {
     ...aiResult,
     riskLevel: adjustedRisk,
-    description: adjustedRisk !== aiResult.riskLevel
-      ? `${aiResult.description}\n\n[Nota: Nivel de riesgo ajustado de "${aiResult.riskLevel}" a "${adjustedRisk}" por el motor de reglas estructurales basado en el contexto proporcionado.]`
-      : aiResult.description,
+    description: finalDescription,
   };
 }

@@ -50,6 +50,37 @@ export class AnthropicProvider implements IAIProvider {
     try {
       const base64Image = payload.image.toString('base64');
 
+      const messageContent: Array<
+        | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+        | { type: 'text'; text: string }
+      > = [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: base64Image,
+          },
+        },
+      ];
+
+      if (payload.contextImage) {
+        const contextBase64 = payload.contextImage.toString('base64');
+        messageContent.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: contextBase64,
+          },
+        });
+      }
+
+      messageContent.push({
+        type: 'text',
+        text: payload.prompt,
+      });
+
       const body = {
         model: this.model,
         max_tokens: payload.maxTokens,
@@ -57,20 +88,7 @@ export class AnthropicProvider implements IAIProvider {
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: 'image/jpeg',
-                  data: base64Image,
-                },
-              },
-              {
-                type: 'text',
-                text: payload.prompt,
-              },
-            ],
+            content: messageContent,
           },
         ],
       };

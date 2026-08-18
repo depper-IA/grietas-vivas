@@ -3,6 +3,7 @@
  *
  * Routes crack image analysis through server-managed fallback providers
  * (OpenRouter, NVIDIA NIM) when the user has no BYOK key configured.
+ * Supports multi-image analysis and structural context prompt augmentation.
  *
  * Security invariants:
  * - Fallback API keys are read exclusively from environment variables
@@ -19,6 +20,10 @@ import { OpenRouterProvider } from '@/lib/ai/providers/openrouter';
 import { NVIDIANIMProvider } from '@/lib/ai/providers/nvidia-nim';
 import type { AnalysisResult } from '@/lib/ai/types';
 import type { SafeErrorResponse } from '@/lib/errors/types';
+import {
+  structuralContextSchema,
+  type StructuralContext,
+} from '@/lib/ai/structuralPrompt';
 
 /**
  * Maximum base64 image size: ~13.7 MB (accommodates a 10 MB raw image).
@@ -32,6 +37,11 @@ const fallbackAnalysisInputSchema = z.object({
     .string()
     .min(1, 'Image data is required')
     .max(MAX_BASE64_SIZE, 'Image exceeds maximum allowed size'),
+  contextImageBase64: z
+    .string()
+    .max(MAX_BASE64_SIZE, 'Context image exceeds maximum allowed size')
+    .optional(),
+  structuralContext: structuralContextSchema.optional(),
 });
 
 /** Return type: either a successful analysis or a structured error. */
@@ -48,11 +58,13 @@ export type AnalyzeWithFallbackResult =
  * BYOK calls bypass this action entirely — they go directly from the
  * client to the AI provider (the key never touches our backend).
  *
- * @param input - Object containing the base64-encoded image
+ * @param input - Object containing base64 image(s) and optional structural context
  * @returns Analysis result or structured error
  */
 export async function analyzeWithFallback(input: {
   imageBase64: string;
+  contextImageBase64?: string;
+  structuralContext?: unknown;
 }): Promise<AnalyzeWithFallbackResult> {
   // Validate input
   const validation = fallbackAnalysisInputSchema.safeParse(input);
@@ -99,11 +111,24 @@ export async function analyzeWithFallback(input: {
   const binaryString = Buffer.from(validation.data.imageBase64, 'base64');
   const imageBlob = new Blob([binaryString], { type: 'image/jpeg' });
 
+  let contextImageBlob: Blob | undefined;
+  if (validation.data.contextImageBase64) {
+    const contextBinaryString = Buffer.from(validation.data.contextImageBase64, 'base64');
+    contextImageBlob = new Blob([contextBinaryString], { type: 'image/jpeg' });
+  }
+
   try {
-    const result = await adapter.analyze(imageBlob, {
-      mode: 'fallback',
-      fallbackPriority: ['nvidia-nim', 'openrouter'],
-    });
+    const result = await adapter.analyze(
+      imageBlob,
+      {
+        mode: 'fallback',
+        fallbackPriority: ['nvidia-nim', 'openrouter'],
+      },
+      {
+        contextImage: contextImageBlob,
+        structuralContext: validation.data.structuralContext as StructuralContext | undefined,
+      },
+    );
 
     return { success: true, data: result };
   } catch (error) {

@@ -141,72 +141,87 @@ export function StructuralQuestionnaire({ onComplete, onSkip }: Props) {
   const progress = ((step + 1) / questions.length) * 100;
 
   return (
-    <div className="w-full max-w-md mx-auto px-2 py-4 sm:px-4 sm:py-6">
-      <div className="rounded-2xl border border-border-default bg-surface-1 p-5 sm:p-6 shadow-xl">
-        {/* Barra de progreso */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between text-xs text-text-muted mb-2">
-            <span className="font-medium font-mono tabular-nums">
-              Pregunta {step + 1} de {questions.length}
-            </span>
+    <div className="w-full flex flex-col gap-4 rounded-2xl border border-border-default bg-surface-1 p-4 sm:p-6 shadow-sm">
+      {/* Barra de progreso de preguntas */}
+      <div>
+        <div className="flex items-center justify-between text-xs text-text-muted mb-2">
+          <span className="font-semibold font-mono tabular-nums text-text-primary">
+            Pregunta {step + 1} de {questions.length}
+          </span>
+          <button
+            type="button"
+            onClick={onSkip}
+            className="min-h-[36px] inline-flex items-center text-xs font-semibold text-brand-accent hover:underline px-2 py-1"
+          >
+            Saltar todo
+          </button>
+        </div>
+        <div
+          className="h-2 w-full bg-surface-3 rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Progreso del cuestionario"
+        >
+          <div
+            className="h-full bg-brand-accent rounded-full transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Pregunta */}
+      <div className="text-center py-2">
+        <h2 className="text-base sm:text-lg font-bold text-text-primary tracking-tight">
+          {currentQ.question}
+        </h2>
+        {currentQ.subtitle && (
+          <p className="mt-1 text-xs sm:text-sm text-text-secondary">
+            {currentQ.subtitle}
+          </p>
+        )}
+      </div>
+
+      {/* Opciones */}
+      <div
+        className={`grid gap-2.5 sm:gap-3 ${
+          currentQ.options.length > 2
+            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
+            : 'grid-cols-1 sm:grid-cols-2'
+        }`}
+      >
+        {currentQ.options.map((opt) => {
+          const OptionIcon = opt.Icon;
+          return (
             <button
+              key={String(opt.value)}
               type="button"
-              onClick={onSkip}
-              className="min-h-[44px] inline-flex items-center text-brand-accent hover:underline font-medium px-2 py-1"
+              onClick={() => handleAnswer(opt.value)}
+              className="flex flex-col items-center justify-center gap-2 min-h-[76px] sm:min-h-[88px] p-3 rounded-xl border border-border-default bg-surface-2 hover:border-brand-accent hover:bg-surface-3 active:scale-[0.98] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-accent"
             >
-              Saltar todo
+              <OptionIcon className="h-6 w-6 text-brand-accent shrink-0" aria-hidden="true" />
+              <span className="text-xs sm:text-sm font-semibold text-text-primary text-center leading-snug">
+                {opt.label}
+              </span>
             </button>
-          </div>
-          <div className="h-2 w-full bg-surface-3 rounded-full overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progreso del cuestionario">
-            <div
-              className="h-full bg-brand-accent rounded-full transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Pregunta */}
-        <div className="text-center mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-text-primary tracking-tight">
-            {currentQ.question}
-          </h2>
-          {currentQ.subtitle && (
-            <p className="mt-1.5 text-xs sm:text-sm text-text-secondary">{currentQ.subtitle}</p>
-          )}
-        </div>
-
-        {/* Opciones */}
-        <div className={`grid gap-3 ${currentQ.options.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          {currentQ.options.map((opt) => {
-            const OptionIcon = opt.Icon;
-            return (
-              <button
-                key={String(opt.value)}
-                type="button"
-                onClick={() => handleAnswer(opt.value)}
-                className="flex flex-col items-center justify-center gap-2.5 min-h-[72px] sm:min-h-[80px] p-3.5 sm:p-4 rounded-xl border border-border-default bg-surface-2 hover:border-brand-accent hover:bg-surface-3 active:scale-[0.97] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-accent"
-              >
-                <OptionIcon className="h-6 w-6 text-brand-accent shrink-0" aria-hidden="true" />
-                <span className="text-xs sm:text-sm font-semibold text-text-primary text-center leading-snug">
-                  {opt.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Botón retroceder */}
-        {step > 0 && (
+      {/* Botón retroceder */}
+      {step > 0 && (
+        <div className="pt-2">
           <button
             type="button"
             onClick={() => setStep(step - 1)}
-            className="mt-5 w-full min-h-[44px] flex items-center justify-center gap-1.5 text-sm font-medium text-text-muted hover:text-text-primary transition-colors duration-150 active:scale-[0.98]"
+            className="w-full min-h-[44px] flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold text-text-muted hover:text-text-primary rounded-xl border border-border-subtle bg-surface-2 hover:bg-surface-3 transition-colors duration-150 active:scale-[0.98]"
           >
             <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>Anterior</span>
+            <span>Pregunta anterior</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

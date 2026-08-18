@@ -24,8 +24,8 @@ export function GpsWarningBanner({ gpsStatus }: GpsWarningBannerProps) {
       aria-live="polite"
       className={`w-full px-4 py-2 text-xs sm:text-sm font-semibold text-center flex items-center justify-center gap-2 border-b ${
         isUnavailable
-          ? 'bg-status-critical/20 text-status-critical-fg border-status-critical-border'
-          : 'bg-status-moderate/20 text-status-moderate-fg border-status-moderate-border'
+          ? 'bg-red-100 text-red-950 border-red-300'
+          : 'bg-amber-100 text-amber-950 border-amber-300'
       }`}
     >
       {isUnavailable ? (

@@ -25,6 +25,7 @@ export {
   dangerSignalsSchema,
   PATTERN_METADATA,
   evaluateSafetyOverride,
+  evaluateEmergencyOffline,
 } from './crackTaxonomy';
 export type {
   CrackPattern,
@@ -34,6 +35,7 @@ export type {
   AIRiskLevel,
   PatternMetadata,
   PatternRiskBaseline,
+  StructuralContextInput,
 } from './crackTaxonomy';
 
 /** Risk classification for crack analysis: low, medium, high, or critical. */

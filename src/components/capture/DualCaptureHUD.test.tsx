@@ -349,7 +349,7 @@ describe('DualCaptureHUD', () => {
       expect(blobArg).toBeInstanceOf(Blob);
     });
 
-    it('NO usa un input file nativo para disparar la captura (no existe dual-hud-file-input)', () => {
+    it('incluye boton de carga de galeria e input de archivo accesible', () => {
       const { container } = render(
         <DualCaptureHUD
           step="detail"
@@ -357,11 +357,8 @@ describe('DualCaptureHUD', () => {
           onRetakeStep1={() => {}}
         />
       );
-      expect(
-        container.querySelector('[data-testid="dual-hud-file-input"]')
-      ).toBeNull();
-      // Tampoco debe haber un <input type="file"> en el DOM
-      expect(container.querySelector('input[type="file"]')).toBeNull();
+      expect(screen.getByTestId('dual-hud-upload-button')).toBeInTheDocument();
+      expect(container.querySelector('input[type="file"]')).not.toBeNull();
     });
 
     it('deshabilita el boton mientras la captura esta en curso', async () => {

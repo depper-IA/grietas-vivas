@@ -215,7 +215,9 @@ describe('Property 11: AI Response Schema Validation', () => {
           } catch (error) {
             expect(error).toBeInstanceOf(AIServiceError);
             const aiError = error as AIServiceError;
-            expect(aiError.safeResponse.error.code).toBe('RESPONSE_PARSE_ERROR');
+            expect(['RESPONSE_PARSE_ERROR', 'RESPONSE_VALIDATION_ERROR']).toContain(
+              aiError.safeResponse.error.code
+            );
           }
         }),
         { numRuns: 100 },

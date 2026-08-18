@@ -250,6 +250,93 @@ describe('AIServiceAdapter', () => {
       const result = await adapter.analyze(exactBlob, config);
       expect(result.riskLevel).toBe('medium');
     });
+
+    it('rejects context image larger than 10 MB', async () => {
+      const normalBlob = createImageBlob(1024);
+      const largeContextBlob = createImageBlob(10 * 1024 * 1024 + 1);
+      adapter.registerProvider(createMockProvider('anthropic'));
+
+      const config: AIConfig = {
+        mode: 'byok',
+        byok: { provider: 'anthropic', apiKey: 'key' },
+        fallbackPriority: [],
+      };
+
+      await expect(
+        adapter.analyze(normalBlob, config, { contextImage: largeContextBlob }),
+      ).rejects.toThrow(AIServiceError);
+    });
+  });
+
+  describe('analyze — multimodal & structural context options', () => {
+    it('passes contextImage and structuralContext in payload to provider', async () => {
+      const mockProvider = createMockProvider('anthropic');
+      adapter.registerProvider(mockProvider);
+
+      const config: AIConfig = {
+        mode: 'byok',
+        byok: { provider: 'anthropic', apiKey: 'key' },
+        fallbackPriority: [],
+      };
+
+      const detailBlob = createImageBlob(500);
+      const contextBlob = createImageBlob(800);
+      const structuralContext = {
+        elementType: 'column' as const,
+        crossesFullSpan: true,
+        hasScaleReference: true,
+        scaleReferenceType: 'coin' as const,
+        recentGrowth: true,
+      };
+
+      await adapter.analyze(detailBlob, config, {
+        contextImage: contextBlob,
+        structuralContext,
+      });
+
+      expect(mockProvider.analyze).toHaveBeenCalledOnce();
+      const payload: AnalysisPayload = (mockProvider.analyze as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0];
+
+      expect(payload.image).toBeDefined();
+      expect(payload.contextImage).toBeDefined();
+      expect(payload.structuralContext).toEqual(structuralContext);
+      expect(payload.prompt).toContain('NSR-10 Colombia / FEMA 306');
+      expect(payload.prompt).toContain('FOTOGRAFÍAS ADJUNTAS PARA EL ANÁLISIS MULTIMODAL');
+    });
+
+    it('applies structural rules to adjust result when structuralContext is provided', async () => {
+      const mockProvider = createMockProvider('anthropic', {
+        response: {
+          content: JSON.stringify({
+            riskLevel: 'medium',
+            description: 'Grieta diagonal en columna',
+            confidence: 0.85,
+            crackType: 'shear',
+            crossesFullSpan: true,
+          }),
+        },
+      });
+      adapter.registerProvider(mockProvider);
+
+      const config: AIConfig = {
+        mode: 'byok',
+        byok: { provider: 'anthropic', apiKey: 'key' },
+        fallbackPriority: [],
+      };
+
+      const result = await adapter.analyze(createImageBlob(), config, {
+        structuralContext: {
+          elementType: 'column',
+          crossesFullSpan: true,
+          hasScaleReference: false,
+          recentGrowth: false,
+        },
+      });
+
+      // Escalated to critical by rule engine
+      expect(result.riskLevel).toBe('critical');
+      expect(result.description).toContain('[Nota: Nivel de riesgo ajustado de "medium" a "critical"');
+    });
   });
 
   describe('analyze — response validation', () => {

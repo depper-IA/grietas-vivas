@@ -105,6 +105,30 @@ describe('OpenRouterProvider', () => {
       const expectedBase64 = imageData.toString('base64');
       expect(body.messages[0].content[1].image_url.url).toBe(`data:image/jpeg;base64,${expectedBase64}`);
     });
+
+    it('includes second image_url when contextImage is provided', async () => {
+      const img1 = Buffer.from('img-1-bytes');
+      const img2 = Buffer.from('img-2-bytes');
+      const payload: AnalysisPayload = {
+        image: img1,
+        contextImage: img2,
+        prompt: 'Test prompt',
+        maxTokens: 512,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => createSuccessResponse(),
+      });
+
+      await provider.analyze(payload);
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.messages[0].content).toHaveLength(3);
+      expect(body.messages[0].content[1].image_url.url).toBe(`data:image/jpeg;base64,${img1.toString('base64')}`);
+      expect(body.messages[0].content[2].image_url.url).toBe(`data:image/jpeg;base64,${img2.toString('base64')}`);
+    });
   });
 
   describe('analyze — timeout (15s)', () => {
