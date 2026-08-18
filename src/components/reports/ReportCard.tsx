@@ -17,6 +17,7 @@
  */
 
 import Link from 'next/link';
+import { Trash2 } from 'lucide-react';
 import type { RiskLevel } from '@/lib/ai/types';
 import { DamageReportCard } from './DamageReportCard';
 import type { SyncState } from '@/components/ui/SyncStatusIndicator';
@@ -43,6 +44,7 @@ export interface ReportCardData {
 
 interface ReportCardProps {
   report: ReportCardData;
+  onDelete?: (id: string) => void;
 }
 
 /** Mapea estado + offline-cached a uno de los 4 estados de SyncState. */
@@ -63,7 +65,7 @@ function deriveSyncState(report: ReportCardData): SyncState {
   }
 }
 
-export function ReportCard({ report }: ReportCardProps) {
+export function ReportCard({ report, onDelete }: ReportCardProps) {
   const syncState = deriveSyncState(report);
   const confidencePercent =
     typeof report.analysisConfidence === 'number' && report.analysisConfidence >= 0
@@ -71,7 +73,7 @@ export function ReportCard({ report }: ReportCardProps) {
       : undefined;
 
   return (
-    <li>
+    <li className="relative group">
       <Link
         href={`/reports/${report.id}`}
         className="block focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0 rounded-lg"
@@ -91,6 +93,22 @@ export function ReportCard({ report }: ReportCardProps) {
           gpsLongitude={report.gpsLongitude ?? undefined}
         />
       </Link>
+
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(report.id);
+          }}
+          aria-label={`Eliminar reporte del ${report.createdAt}`}
+          title="Eliminar reporte"
+          className="absolute top-2.5 right-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-1/90 text-text-muted hover:text-status-critical-fg hover:bg-surface-2 border border-border-default opacity-80 group-hover:opacity-100 transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-status-critical-border"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
     </li>
   );
 }

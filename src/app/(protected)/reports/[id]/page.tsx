@@ -37,11 +37,15 @@ import {
   FileImage,
   RefreshCw,
   FileText,
+  Maximize2,
+  Trash2,
 } from 'lucide-react';
 import { FormattedAnalysisText } from '@/components/reports/FormattedAnalysisText';
+import { ImageZoomModal } from '@/components/ui/ImageZoomModal';
+import { ExpertCalibrationSection } from '@/components/reports/ExpertCalibrationSection';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
-import { getCapture } from '@/lib/db/localDb';
-import { generateReport, type ReportOutput } from '@/app/actions/report';
+import { getCapture, deleteCapture } from '@/lib/db/localDb';
+import { generateReport, deleteReport, type ReportOutput } from '@/app/actions/report';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { PostTriageActionGuide } from '@/components/reports/PostTriageActionGuide';
 import { MotionButton } from '@/components/ui/MotionButton';
@@ -100,6 +104,28 @@ export default function ReportDetailPage() {
   const [isOffline, setIsOffline] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [contextImageUrl, setContextImageUrl] = useState<string | null>(null);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteReport = async () => {
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await deleteReport({ reportId });
+      if (res.success) {
+        await deleteCapture(reportId);
+        router.push('/reports');
+      } else {
+        setDeleteError(res.error?.message || 'No se pudo eliminar el reporte.');
+        setIsDeleting(false);
+      }
+    } catch {
+      setDeleteError('Ocurrió un error inesperado al eliminar el reporte.');
+      setIsDeleting(false);
+    }
+  };
 
   const fetchReport = useCallback(async () => {
     setPageState('loading');
@@ -396,50 +422,107 @@ export default function ReportDetailPage() {
         </section>
       )}
 
-      {/* Dual photo gallery (R5, R6) */}
+      {/* Dual photo gallery (R5, R6) con visor interactivo de zoom */}
       {imageUrl && (
         <section aria-labelledby="image-heading" className="mb-6">
-          <h2 id="image-heading" className="sr-only">
-            Imagenes capturadas
-          </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 id="image-heading" className="text-sm font-semibold text-text-primary tracking-tight">
+              Evidencia Fotográfica
+            </h2>
+            <button
+              type="button"
+              onClick={() => setIsZoomOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-accent hover:underline focus:outline-none"
+            >
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Abrir Visor / Zoom</span>
+            </button>
+          </div>
+
           {contextImageUrl ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <figure className="flex flex-col gap-2">
-                <img
-                  src={imageUrl}
-                  alt="Foto de detalle de la grieta capturada a 30-50 cm"
-                  className="w-full rounded-2xl border border-border-default object-cover shadow-md aspect-[4/3]"
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsZoomOpen(true)}
+                  aria-label="Ampliar foto de detalle"
+                  className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default shadow-md focus:outline-none focus:ring-2 focus:ring-brand-accent text-left"
+                >
+                  <img
+                    src={imageUrl}
+                    alt="Foto de detalle de la grieta capturada a 30-50 cm"
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-surface-0/80 text-white text-xs px-2.5 py-1 rounded-full backdrop-blur-sm inline-flex items-center gap-1 shadow-lg font-medium">
+                      <Maximize2 className="h-3 w-3" /> Zoom
+                    </span>
+                  </div>
+                </button>
                 <figcaption className="flex items-center gap-1.5 text-xs font-medium text-text-secondary">
                   <Camera
                     className="h-3.5 w-3.5 text-triage-monitoring"
                     aria-hidden="true"
                   />
-                  Foto de Detalle (30-50 cm)
+                  <span>Foto de Detalle (30-50 cm)</span>
                 </figcaption>
               </figure>
+
               <figure className="flex flex-col gap-2">
-                <img
-                  src={contextImageUrl}
-                  alt="Foto de contexto de la grieta capturada a 2 metros"
-                  className="w-full rounded-2xl border border-border-default object-cover shadow-md aspect-[4/3]"
-                />
+                <button
+                  type="button"
+                  onClick={() => setIsZoomOpen(true)}
+                  aria-label="Ampliar foto de contexto"
+                  className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default shadow-md focus:outline-none focus:ring-2 focus:ring-brand-accent text-left"
+                >
+                  <img
+                    src={contextImageUrl}
+                    alt="Foto de contexto de la grieta capturada a 2 metros"
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-surface-0/80 text-white text-xs px-2.5 py-1 rounded-full backdrop-blur-sm inline-flex items-center gap-1 shadow-lg font-medium">
+                      <Maximize2 className="h-3 w-3" /> Zoom
+                    </span>
+                  </div>
+                </button>
                 <figcaption className="flex items-center gap-1.5 text-xs font-medium text-text-secondary">
                   <Camera
                     className="h-3.5 w-3.5 text-triage-habitable"
                     aria-hidden="true"
                   />
-                  Foto de Contexto (2 m)
+                  <span>Foto de Contexto (2 m)</span>
                 </figcaption>
               </figure>
             </div>
           ) : (
-            <img
-              src={imageUrl}
-              alt="Fotografía capturada de la grieta para análisis estructural"
-              className="w-full rounded-2xl border border-border-default object-cover shadow-md aspect-[4/3]"
-            />
+            <button
+              type="button"
+              onClick={() => setIsZoomOpen(true)}
+              aria-label="Ampliar fotografía de la grieta"
+              className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default shadow-md focus:outline-none focus:ring-2 focus:ring-brand-accent block text-left"
+            >
+              <img
+                src={imageUrl}
+                alt="Fotografía capturada de la grieta para análisis estructural"
+                className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-surface-0/80 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm inline-flex items-center gap-1.5 shadow-lg font-medium">
+                  <Maximize2 className="h-3.5 w-3.5" /> Click para ampliar y hacer zoom
+                </span>
+              </div>
+            </button>
           )}
+
+          {/* Modal de Zoom */}
+          <ImageZoomModal
+            isOpen={isZoomOpen}
+            onClose={() => setIsZoomOpen(false)}
+            imageUrl={imageUrl}
+            contextImageUrl={contextImageUrl}
+            title={`Inspección de Imagen — Reporte #${report.id.slice(0, 8)}`}
+          />
         </section>
       )}
 
@@ -803,6 +886,69 @@ export default function ReportDetailPage() {
           </div>
         </section>
       )}
+
+      {/* Calibración Pericial / Aprendizaje Continuo */}
+      <ExpertCalibrationSection
+        reportId={report.id}
+        currentRiskLevel={report.riskLevel}
+        currentPattern={report.pattern}
+        existingCalibration={
+          report.sensorMetadata && typeof report.sensorMetadata.calibration === 'object'
+            ? (report.sensorMetadata.calibration as any)
+            : null
+        }
+      />
+
+      {/* Zona de peligro: Eliminar reporte */}
+      <section aria-labelledby="danger-zone-heading" className="mb-6 pt-4 border-t border-border-subtle">
+        <h2 id="danger-zone-heading" className="sr-only">
+          Zona de peligro
+        </h2>
+        <div className="flex flex-col gap-3">
+          {!showDeleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-status-critical-border/40 bg-surface-1 px-4 py-2.5 text-xs font-semibold text-status-critical-fg hover:bg-status-critical/10 active:scale-[0.98] transition-all"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              <span>Eliminar este reporte</span>
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-status-critical-border bg-surface-1 p-4 sm:p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-bold text-status-critical-fg flex items-center gap-2">
+                <Trash2 className="h-4 w-4 shrink-0" />
+                <span>¿Confirmas que deseas eliminar este reporte?</span>
+              </h3>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Esta acción eliminará permanentemente los datos y las fotografías asociadas de este reporte en la nube y en tu dispositivo. Esta acción no se puede deshacer.
+              </p>
+              {deleteError && (
+                <p className="text-xs text-status-critical-fg font-medium">{deleteError}</p>
+              )}
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="min-h-[38px] px-3.5 rounded-xl border border-border-default bg-surface-2 text-xs font-semibold text-text-secondary hover:text-text-primary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteReport}
+                  disabled={isDeleting}
+                  className="min-h-[38px] px-4 rounded-xl bg-status-critical text-xs font-semibold text-white shadow-sm hover:bg-status-critical/90 disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {isDeleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  <span>Sí, eliminar definitivamente</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

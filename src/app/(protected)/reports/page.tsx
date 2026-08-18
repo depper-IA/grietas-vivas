@@ -21,9 +21,10 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { FileImage, RefreshCw } from 'lucide-react';
+import { FileImage, RefreshCw, Trash2, X } from 'lucide-react';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
-import { getAllCaptures } from '@/lib/db/localDb';
+import { getAllCaptures, deleteCapture } from '@/lib/db/localDb';
+import { deleteReport } from '@/app/actions/report';
 import { ReportCard, type ReportCardData } from '@/components/reports/ReportCard';
 import type { RiskLevel } from '@/lib/ai/types';
 
@@ -34,6 +35,37 @@ export default function ReportsPage() {
   const [loadingState, setLoadingState] = useState<LoadingState>('loading');
   const [isOffline, setIsOffline] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteClick = (id: string) => {
+    setDeletingId(id);
+    setDeleteError('');
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await deleteReport({ reportId: deletingId });
+      if (res.success) {
+        await deleteCapture(deletingId);
+        setReports((prev) => prev.filter((r) => r.id !== deletingId));
+        setDeletingId(null);
+      } else {
+        setDeleteError(res.error?.message || 'No se pudo eliminar el reporte.');
+      }
+    } catch {
+      // Si falla por red u offline, borrar de localDb de todas formas
+      await deleteCapture(deletingId);
+      setReports((prev) => prev.filter((r) => r.id !== deletingId));
+      setDeletingId(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const fetchReports = useCallback(async () => {
     setLoadingState('loading');
@@ -224,9 +256,68 @@ export default function ReportsPage() {
       {loadingState === 'loaded' && reports.length > 0 && (
         <ul className="space-y-3.5" aria-label="Lista de reportes">
           {reports.map((report) => (
-            <ReportCard key={report.id} report={report} />
+            <ReportCard key={report.id} report={report} onDelete={handleDeleteClick} />
           ))}
         </ul>
+      )}
+
+      {/* Modal de confirmación de eliminación */}
+      {deletingId && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar eliminación"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-status-critical-border bg-surface-1 p-5 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-critical/20 text-status-critical-fg">
+                <Trash2 className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingId(null)}
+                aria-label="Cerrar modal"
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-text-primary tracking-tight">
+                ¿Eliminar reporte?
+              </h3>
+              <p className="mt-1.5 text-xs text-text-secondary leading-relaxed">
+                Esta acción eliminará permanentemente los datos y las fotografías asociadas. No se puede deshacer.
+              </p>
+            </div>
+
+            {deleteError && (
+              <p className="text-xs text-status-critical-fg font-medium">{deleteError}</p>
+            )}
+
+            <div className="flex gap-2.5 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingId(null)}
+                disabled={isDeleting}
+                className="min-h-[40px] px-4 rounded-xl border border-border-default bg-surface-2 text-xs font-semibold text-text-secondary hover:text-text-primary active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="min-h-[40px] px-4 rounded-xl bg-status-critical text-xs font-semibold text-white shadow-md hover:bg-status-critical/90 active:scale-95 transition-all disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {isDeleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                <span>Eliminar</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
