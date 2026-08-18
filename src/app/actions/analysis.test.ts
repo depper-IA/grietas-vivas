@@ -135,7 +135,7 @@ describe('analyzeWithFallback', () => {
         expect.any(Blob),
         expect.objectContaining({
           mode: 'fallback',
-          fallbackPriority: ['openrouter', 'nvidia-nim'],
+          fallbackPriority: ['nvidia-nim', 'openrouter'],
         }),
       );
     });

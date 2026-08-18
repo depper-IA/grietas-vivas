@@ -28,6 +28,7 @@ import { OpenAIProvider } from '@/lib/ai/providers/openai';
 import { OpenRouterProvider } from '@/lib/ai/providers/openrouter';
 import { GeminiProvider } from '@/lib/ai/providers/gemini';
 import { MinimaxProvider } from '@/lib/ai/providers/minimax';
+import { NvidiaNimProvider } from '@/lib/ai/providers/nvidia-nim';
 import type { CrackPattern, DangerSignals, TriageOutcome } from '@/lib/validation/schemas';
 import {
   CircleCheck,
@@ -335,7 +336,7 @@ export default function CapturePage() {
         if (session?.access_token) {
           const byokConfig = await retrieveEncryptedByokConfig(session.access_token);
           if (byokConfig?.apiKey) {
-            const { apiKey, provider, model } = byokConfig;
+            const { apiKey, provider, model, baseUrl } = byokConfig;
             let providerInstance: IAIProvider | null = null;
 
             switch (provider) {
@@ -343,15 +344,19 @@ export default function CapturePage() {
                 providerInstance = new AnthropicProvider(apiKey, model);
                 break;
               case 'openrouter':
-                providerInstance = new OpenRouterProvider(apiKey, model);
+                providerInstance = new OpenRouterProvider(apiKey, model, baseUrl);
                 break;
               case 'gemini':
                 providerInstance = new GeminiProvider(apiKey, model);
                 break;
               case 'minimax':
-                providerInstance = new MinimaxProvider(apiKey, model);
+                providerInstance = new MinimaxProvider(apiKey, model, baseUrl);
+                break;
+              case 'nvidia-nim':
+                providerInstance = new NvidiaNimProvider(apiKey, model, baseUrl);
                 break;
               case 'openai':
+              case 'custom':
               default:
                 providerInstance = new OpenAIProvider(apiKey, model);
                 break;
@@ -363,8 +368,8 @@ export default function CapturePage() {
 
             const config: AIConfig = {
               mode: 'byok',
-              byok: { provider, apiKey, model },
-              fallbackPriority: ['openrouter', 'nvidia-nim'],
+              byok: { provider, apiKey, model, baseUrl },
+              fallbackPriority: ['nvidia-nim', 'openrouter'],
             };
 
             await analyze(cleanImage, config);

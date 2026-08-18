@@ -82,7 +82,7 @@ describe('MinimaxProvider', () => {
 
       expect(mockFetch).toHaveBeenCalledOnce();
       const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toBe('https://api.minimax.chat/v1/chat/completions');
+      expect(url).toBe('https://api.minimax.io/v1/chat/completions');
       expect(options.method).toBe('POST');
       expect(options.headers['Authorization']).toBe('Bearer minimax-test-key-123');
       expect(options.headers['Content-Type']).toBe('application/json');

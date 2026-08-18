@@ -8,6 +8,16 @@
 /** Crack severity classification assigned by AI analysis. */
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
+/** Supported AI providers for BYOK and Fallback. */
+export type AIProvider =
+  | 'anthropic'
+  | 'openai'
+  | 'openrouter'
+  | 'gemini'
+  | 'minimax'
+  | 'nvidia-nim'
+  | 'custom';
+
 /** Structured result from an AI crack analysis. */
 export interface AnalysisResult {
   /** Severity classification */
@@ -29,11 +39,15 @@ export interface AIConfig {
   /** BYOK configuration, present only when mode is 'byok' */
   byok?: {
     /** Selected AI provider */
-    provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'minimax';
+    provider: AIProvider;
     /** User's API key (encrypted in browser memory) */
     apiKey: string;
     /** Selected model for this provider */
     model?: string;
+    /** Custom base URL endpoint */
+    baseUrl?: string;
+    /** Max output tokens */
+    maxTokens?: number;
   };
   /** Ordered list of fallback provider names by priority */
   fallbackPriority: string[];

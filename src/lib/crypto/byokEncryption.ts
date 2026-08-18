@@ -179,8 +179,10 @@ export async function decryptApiKey(
 
 export interface StoredByokConfig {
   apiKey: string;
-  provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'minimax';
+  provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'minimax' | 'nvidia-nim' | 'custom';
   model?: string;
+  baseUrl?: string;
+  maxTokens?: number;
 }
 
 /**
@@ -223,6 +225,8 @@ export async function retrieveEncryptedByokConfig(
     provider = 'openrouter';
   } else if (decrypted.startsWith('AIza')) {
     provider = 'gemini';
+  } else if (decrypted.startsWith('nvapi-')) {
+    provider = 'nvidia-nim';
   } else if (decrypted.startsWith('eyJ') || decrypted.match(/^minimax-/i)) {
     provider = 'minimax';
   }

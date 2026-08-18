@@ -89,11 +89,19 @@ interface CachedModels {
 export class NvidiaNimProvider implements IAIProvider {
   public readonly name = 'nvidia-nim';
   private readonly apiKey: string;
+  public readonly model: string;
+  public readonly baseUrl: string;
   private cache: CachedModels | null = null;
   private inflightModelsPromise: Promise<string[]> | null = null;
 
-  constructor(apiKey: string) {
+  constructor(
+    apiKey: string,
+    model: string = 'minimaxai/minimax-m3',
+    baseUrl: string = 'https://integrate.api.nvidia.com/v1',
+  ) {
     this.apiKey = apiKey;
+    this.model = model;
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
   }
 
   /**
@@ -136,7 +144,7 @@ export class NvidiaNimProvider implements IAIProvider {
     const timeout = setTimeout(() => controller.abort(), NVIDIA_NIM_TIMEOUT_MS);
 
     try {
-      const response = await fetch(NVIDIA_NIM_MODELS_URL, {
+      const response = await fetch(`${this.baseUrl}/models`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
@@ -204,7 +212,7 @@ export class NvidiaNimProvider implements IAIProvider {
     try {
       const base64Image = payload.image.toString('base64');
 
-      const response = await fetch(NVIDIA_NIM_API_URL, {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,

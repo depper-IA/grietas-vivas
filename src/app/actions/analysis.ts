@@ -102,7 +102,7 @@ export async function analyzeWithFallback(input: {
   try {
     const result = await adapter.analyze(imageBlob, {
       mode: 'fallback',
-      fallbackPriority: ['openrouter', 'nvidia-nim'],
+      fallbackPriority: ['nvidia-nim', 'openrouter'],
     });
 
     return { success: true, data: result };

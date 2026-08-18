@@ -12,8 +12,8 @@ import type { AnalysisPayload, IAIProvider, RawProviderResponse } from '../types
 /** Timeout for Minimax requests (15 seconds per design spec). */
 const MINIMAX_TIMEOUT_MS = 15_000;
 
-/** Minimax chat completions endpoint. */
-const MINIMAX_API_URL = 'https://api.minimax.chat/v1/chat/completions';
+/** Default Minimax chat completions base URL (Global Token Plan: platform.minimax.io). */
+const DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
 
 /** Default model for vision analysis on Minimax (Vision-Language model). */
 const DEFAULT_MODEL = 'MiniMax-VL-01';
@@ -21,11 +21,13 @@ const DEFAULT_MODEL = 'MiniMax-VL-01';
 export class MinimaxProvider implements IAIProvider {
   public readonly name = 'minimax';
   private readonly apiKey: string;
-  private readonly model: string;
+  public readonly model: string;
+  public readonly baseUrl: string;
 
-  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
+  constructor(apiKey: string, model: string = DEFAULT_MODEL, baseUrl: string = DEFAULT_BASE_URL) {
     this.apiKey = apiKey;
     this.model = model;
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
   }
 
   async analyze(payload: AnalysisPayload): Promise<RawProviderResponse> {
@@ -34,8 +36,9 @@ export class MinimaxProvider implements IAIProvider {
 
     try {
       const base64Image = payload.image.toString('base64');
+      const endpoint = `${this.baseUrl}/chat/completions`;
 
-      const response = await fetch(MINIMAX_API_URL, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
