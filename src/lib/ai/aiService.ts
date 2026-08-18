@@ -25,16 +25,19 @@ import {
 /** Maximum allowed image size in bytes (10 MB). */
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
-/** Standard prompt for structural crack analysis. */
+/** Standard prompt for structural crack analysis — 100% en español. */
 const CRACK_ANALYSIS_PROMPT = [
-  'You are a structural damage analyzer. Look at the provided image and describe what you actually observe.',
-  'Respond in Spanish (Latin American, neutral).',
-  'Do NOT copy or paraphrase example values — every response must describe THIS specific image.',
-  'Classify risk level as: low, medium, high, or critical, based on what you observe.',
-  'Write a CONCISE description in 2-4 short sentences (60-150 words): crack pattern (vertical, diagonal, stepped, hairline, etc.), approximate length and width if estimable, location on the structure, and any concerning secondary signs (spalling, exposed rebar, water damage).',
-  'Provide a confidence score between 0.0 and 1.0.',
-  'Respond ONLY with a valid JSON object. No markdown, no preamble, no trailing text.',
-  'Required keys: "riskLevel" (low|medium|high|critical), "description" (Spanish, 60-150 words), "confidence" (0.0-1.0).',
+  'Eres un especialista en evaluación forense de daños y patologías estructurales.',
+  'Analiza la imagen adjunta y genera un reporte técnico profesional, conciso y 100% en ESPAÑOL.',
+  'Clasifica el nivel de riesgo en uno de estos valores exactos: "low", "medium", "high" o "critical".',
+  'Redacta la descripción estructurada en 3 o 4 líneas breves en español (60 a 130 palabras en total):',
+  'Patrón: [Tipo de fisura o mecanismo de falla visible]',
+  'Ubicación: [Elemento constructivo o estructural afectado]',
+  'Severidad: [Nivel de compromiso estructural y signos de alerta]',
+  'Recomendación: [Acción técnica preventiva inmediata]',
+  'Asigna un puntaje de confianza (confidence) entre 0.0 y 1.0.',
+  'Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin bloques de código markdown.',
+  'Esquema requerido: {"riskLevel":"low"|"medium"|"high"|"critical","description":"...","confidence":0.0-1.0}',
 ].join(' ');
 
 /** Default max tokens for AI provider requests. */

@@ -79,7 +79,7 @@ export async function analyzeWithFallback(input: {
       error: {
         error: {
           code: 'SERVICE_UNAVAILABLE',
-          message: 'No AI analysis providers are currently configured',
+          message: 'No hay proveedores de análisis IA configurados',
         },
       },
     };
@@ -108,8 +108,8 @@ export async function analyzeWithFallback(input: {
     return { success: true, data: result };
   } catch (error) {
     // Return safe error — never expose internals like API keys or stack traces,
-    // but allow specific error codes to surface helpful messages.
-    let message = 'Analysis could not be completed at this time';
+    // but allow specific error codes to surface helpful messages in Spanish.
+    let message = 'No fue posible completar el análisis en este momento.';
     let code = 'ANALYSIS_FAILED';
 
     if (error instanceof Error) {
@@ -118,22 +118,22 @@ export async function analyzeWithFallback(input: {
       // Treat that as the canonical ANALYSIS_FAILED code — only do specific
       // categorization for raw errors that bypass the wrapper.
       if (errMsg.startsWith('Analysis failed:')) {
-        message = errMsg;
+        message = 'El análisis no pudo completarse con los proveedores disponibles.';
         code = 'ANALYSIS_FAILED';
       } else if (errMsg.includes('RESPONSE_PARSE_ERROR')) {
-        message = 'AI provider returned an unexpected format. Please retry.';
+        message = 'El proveedor de IA devolvió un formato inesperado. Por favor reintenta.';
         code = 'RESPONSE_PARSE_ERROR';
       } else if (errMsg.includes('rate limit') || errMsg.includes('429')) {
-        message = 'AI provider rate limit reached. Please wait a moment and retry.';
+        message = 'Límite de solicitudes alcanzado en el proveedor de IA. Espera un momento y reintenta.';
         code = 'RATE_LIMIT';
       } else if (errMsg.includes('authentication') || errMsg.includes('401') || errMsg.includes('403')) {
-        message = 'AI provider authentication failed. Please check your API key.';
+        message = 'Error de autenticación con el proveedor de IA. Revisa tu clave API.';
         code = 'AUTH_FAILED';
       } else if (errMsg.includes('All') && errMsg.includes('models failed')) {
-        message = 'All AI models are currently unavailable. Please retry in a moment.';
+        message = 'Todos los modelos de IA no están disponibles actualmente. Por favor reintenta en breve.';
         code = 'ALL_MODELS_FAILED';
       } else if (errMsg.includes('timeout') || errMsg.includes('aborted')) {
-        message = 'AI provider request timed out. Please retry.';
+        message = 'La solicitud al proveedor de IA excedió el tiempo de espera. Por favor reintenta.';
         code = 'TIMEOUT';
       }
     }

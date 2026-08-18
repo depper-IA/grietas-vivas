@@ -180,7 +180,7 @@ describe('analyzeWithFallback', () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.error.code).toBe('SERVICE_UNAVAILABLE');
-        expect(result.error.error.message).toContain('configured');
+        expect(result.error.error.message).toContain('configurados');
       }
     });
 
@@ -213,7 +213,7 @@ describe('analyzeWithFallback', () => {
         expect(result.error.error.message).not.toContain('/var');
         expect(result.error.error.message).not.toContain('ECONNREFUSED');
         expect(result.error.error.message).toBe(
-          'Analysis could not be completed at this time',
+          'No fue posible completar el análisis en este momento.',
         );
       }
     });

@@ -58,7 +58,7 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'UNAUTHORIZED',
-          message: 'Authentication required. Please log in and try again.',
+          message: 'Autenticación requerida. Por favor inicia sesión e intenta de nuevo.',
         },
       };
     }
@@ -71,8 +71,8 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'A valid capture ID is required.',
-          fields: { captureId: 'Capture ID must be a non-empty string' },
+          message: 'Se requiere un ID de captura válido.',
+          fields: { captureId: 'El ID de captura debe ser una cadena no vacía' },
         },
       };
     }
@@ -90,7 +90,7 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: 'Report not found. Please verify the capture ID and try again.',
+          message: 'Reporte no encontrado. Verifica el identificador de captura.',
         },
       };
     }
@@ -143,7 +143,7 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'CONFIGURATION_ERROR',
-          message: 'Service is temporarily unavailable. Please try again later.',
+          message: 'El servicio no está disponible temporalmente. Por favor intenta más tarde.',
         },
       };
     }
@@ -169,7 +169,7 @@ export async function generateReport(data: {
           success: false,
           error: {
             code: 'REPORT_GENERATION_FAILED',
-            message: errorBody.error.message || 'Report generation failed due to missing fields.',
+            message: errorBody.error.message || 'La generación del reporte falló por campos faltantes.',
             fields: errorBody.error.fields,
           },
         };
@@ -179,7 +179,7 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'REPORT_GENERATION_FAILED',
-          message: 'Failed to generate the report. Please try again later.',
+          message: 'No se pudo generar el reporte. Por favor intenta más tarde.',
         },
       };
     }
@@ -198,7 +198,7 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'TIMEOUT',
-          message: 'Report generation timed out. Please try again later.',
+          message: 'La generación del reporte excedió el tiempo límite. Por favor intenta más tarde.',
         },
       };
     }
@@ -208,7 +208,7 @@ export async function generateReport(data: {
       success: false,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred. Please try again later.',
+        message: 'Ocurrió un error inesperado. Por favor intenta más tarde.',
       },
     };
   }

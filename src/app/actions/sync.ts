@@ -64,7 +64,7 @@ export async function syncCapture(data: {
         success: false,
         error: {
           code: 'UNAUTHORIZED',
-          message: 'Authentication required. Please log in and try again.',
+          message: 'Autenticación requerida. Por favor inicia sesión e intenta de nuevo.',
         },
       };
     }
@@ -83,7 +83,7 @@ export async function syncCapture(data: {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Invalid sync payload. Please check the submitted data.',
+          message: 'Datos de sincronización inválidos. Por favor verifica los datos enviados.',
           fields: fieldErrors,
         },
       };
@@ -111,8 +111,8 @@ export async function syncCapture(data: {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Generated filename is invalid after sanitization.',
-          fields: { filename: 'Filename cannot be empty after sanitization' },
+          message: 'El nombre de archivo generado no es válido tras la sanitización.',
+          fields: { filename: 'El nombre de archivo no puede estar vacío tras la sanitización' },
         },
       };
     }
@@ -133,7 +133,7 @@ export async function syncCapture(data: {
         success: false,
         error: {
           code: 'UPLOAD_FAILED',
-          message: 'Failed to upload image. Please try again later.',
+          message: 'No se pudo subir la imagen. Por favor intenta más tarde.',
         },
       };
     }
@@ -206,7 +206,7 @@ export async function syncCapture(data: {
         success: false,
         error: {
           code: 'PERSISTENCE_FAILED',
-          message: 'Failed to save report data. Please try again later.',
+          message: 'No se pudo guardar la información del reporte. Por favor intenta más tarde.',
         },
       };
     }
@@ -223,7 +223,7 @@ export async function syncCapture(data: {
       success: false,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred. Please try again later.',
+        message: 'Ocurrió un error inesperado. Por favor intenta más tarde.',
       },
     };
   }
