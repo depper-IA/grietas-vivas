@@ -107,17 +107,42 @@ export async function analyzeWithFallback(input: {
 
     return { success: true, data: result };
   } catch (error) {
-    // Return safe error — never expose internals
-    const message =
-      error instanceof Error && error.message.includes('Analysis failed')
-        ? error.message
-        : 'Analysis could not be completed at this time';
+    // Return safe error — never expose internals like API keys or stack traces,
+    // but allow specific error codes to surface helpful messages.
+    let message = 'Analysis could not be completed at this time';
+    let code = 'ANALYSIS_FAILED';
+
+    if (error instanceof Error) {
+      const errMsg = error.message;
+      // The AIServiceAdapter wraps fallback failures as "Analysis failed: ...".
+      // Treat that as the canonical ANALYSIS_FAILED code — only do specific
+      // categorization for raw errors that bypass the wrapper.
+      if (errMsg.startsWith('Analysis failed:')) {
+        message = errMsg;
+        code = 'ANALYSIS_FAILED';
+      } else if (errMsg.includes('RESPONSE_PARSE_ERROR')) {
+        message = 'AI provider returned an unexpected format. Please retry.';
+        code = 'RESPONSE_PARSE_ERROR';
+      } else if (errMsg.includes('rate limit') || errMsg.includes('429')) {
+        message = 'AI provider rate limit reached. Please wait a moment and retry.';
+        code = 'RATE_LIMIT';
+      } else if (errMsg.includes('authentication') || errMsg.includes('401') || errMsg.includes('403')) {
+        message = 'AI provider authentication failed. Please check your API key.';
+        code = 'AUTH_FAILED';
+      } else if (errMsg.includes('All') && errMsg.includes('models failed')) {
+        message = 'All AI models are currently unavailable. Please retry in a moment.';
+        code = 'ALL_MODELS_FAILED';
+      } else if (errMsg.includes('timeout') || errMsg.includes('aborted')) {
+        message = 'AI provider request timed out. Please retry.';
+        code = 'TIMEOUT';
+      }
+    }
 
     return {
       success: false,
       error: {
         error: {
-          code: 'ANALYSIS_FAILED',
+          code,
           message,
         },
       },

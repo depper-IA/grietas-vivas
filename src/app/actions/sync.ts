@@ -199,6 +199,9 @@ export async function syncCapture(data: {
         await supabase.storage.from('captures').remove([contextStoragePath]);
       }
 
+      // Log full error server-side for debugging; keep user-facing message safe
+      console.error('[syncCapture] DB insert error:', insertError);
+
       return {
         success: false,
         error: {
