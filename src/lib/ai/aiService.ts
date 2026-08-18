@@ -26,13 +26,14 @@ const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 /** Standard prompt for structural crack analysis. */
 const CRACK_ANALYSIS_PROMPT = [
-  'Analyze this image of a building crack or structural damage.',
-  'Classify the risk level as one of: low, medium, high, or critical.',
-  'Provide a concise description of the damage observed (max 2000 characters).',
-  'Include a confidence score between 0.0 and 1.0.',
-  'IMPORTANT: Respond ONLY with a valid JSON object. No markdown, no explanations, no preamble.',
-  'The JSON must have exactly these keys: "riskLevel" (one of: low, medium, high, critical), "description" (string, max 2000 chars), "confidence" (number between 0.0 and 1.0).',
-  'Example valid response: {"riskLevel":"high","description":"Vertical crack 3mm wide running from window to floor","confidence":0.85}',
+  'You are a structural damage analyzer. Look at the provided image and analyze the actual damage you observe.',
+  'Respond in Spanish (Latin American Spanish, neutral).',
+  'Do NOT copy or paraphrase example values — every response must describe THIS specific image.',
+  'Classify the risk level as one of: low, medium, high, or critical, based on what you observe.',
+  'Write a detailed description (150-400 words) covering: crack pattern (hairline, vertical, horizontal, diagonal, stepped, etc.), approximate length and width if estimable, location on the structure (wall, ceiling, floor, beam-column joint, etc.), visible secondary damage (spalling, exposed rebar, water stains, mold, debris), and structural concern indicators.',
+  'Provide a confidence score between 0.0 and 1.0 reflecting how certain you are about your classification.',
+  'Respond ONLY with a valid JSON object. No markdown, no explanations, no preamble, no trailing text.',
+  'The JSON must have exactly these three keys: "riskLevel" (string, one of: low, medium, high, critical), "description" (string, 150-400 words in Spanish), "confidence" (number between 0.0 and 1.0).',
 ].join(' ');
 
 /** Default max tokens for AI provider requests. */

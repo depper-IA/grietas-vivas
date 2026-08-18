@@ -90,9 +90,10 @@ export function stripMarkdownJsonWrapper(content: string): string {
 
 /**
  * Risk level aliases mapped to the canonical schema values.
- * Order matters: more specific terms should appear before less specific ones.
+ * Includes both English and Spanish variants since the app targets a Spanish audience.
  */
 const RISK_LEVEL_ALIASES: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {
+  // English
   low: 'low',
   minor: 'low',
   medium: 'medium',
@@ -102,6 +103,34 @@ const RISK_LEVEL_ALIASES: Record<string, 'low' | 'medium' | 'high' | 'critical'>
   critical: 'critical',
   extreme: 'critical',
   urgent: 'critical',
+  // Spanish
+  bajo: 'low',
+  leve: 'low',
+  menor: 'low',
+  medio: 'medium',
+  moderado: 'medium',
+  moderadoa: 'medium',
+  alto: 'high',
+  elevado: 'high',
+  grave: 'high',
+  severo: 'high',
+  severoa: 'high',
+  crítico: 'critical',
+  critico: 'critical',
+  crítico: 'critical',
+  extremo: 'critical',
+  extrema: 'critical',
+  urgente: 'critical',
+};
+
+/**
+ * Field label aliases for the markdown fallback parser.
+ * Maps logical field name → list of possible label strings (English + Spanish).
+ */
+const FIELD_LABELS: Record<'riskLevel' | 'description' | 'confidence', string[]> = {
+  riskLevel: ['Risk Level', 'Nivel de Riesgo', 'Riesgo', 'Nivel'],
+  description: ['Description', 'Descripción', 'Descripcion'],
+  confidence: ['Confidence', 'Confianza', 'Certeza'],
 };
 
 /**
@@ -116,27 +145,29 @@ export function parseMarkdownResponse(content: string): {
   const normalize = (s: string): string =>
     s.trim().replace(/^[*_`#\s]+/, '').replace(/[*_`#\s]+$/, '').trim();
 
-  const getField = (label: string): string | null => {
-    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const patterns = [
-      new RegExp(
-        `\\*\\*${escapedLabel}\\*?\\*?\\s*[:\\-]\\s*([^\\n*]+?)(?=\\n\\s*\\n|\\n\\s*\\*|$)`,
-        'i',
-      ),
-      new RegExp(`${escapedLabel}\\s*[:\\-]\\s*([^\\n]+)`, 'i'),
-    ];
-    for (const pattern of patterns) {
-      const match = content.match(pattern);
-      if (match && match[1]) {
-        return normalize(match[1]);
+  const getField = (labels: string[]): string | null => {
+    for (const label of labels) {
+      const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patterns = [
+        new RegExp(
+          `\\*\\*${escapedLabel}\\*?\\*?\\s*[:\\-]\\s*([^\\n*]+?)(?=\\n\\s*\\n|\\n\\s*\\*|$)`,
+          'i',
+        ),
+        new RegExp(`${escapedLabel}\\s*[:\\-]\\s*([^\\n]+)`, 'i'),
+      ];
+      for (const pattern of patterns) {
+        const match = content.match(pattern);
+        if (match && match[1]) {
+          return normalize(match[1]);
+        }
       }
     }
     return null;
   };
 
-  const riskLevelRaw = getField('Risk Level');
-  const description = getField('Description');
-  const confidenceRaw = getField('Confidence');
+  const riskLevelRaw = getField(FIELD_LABELS.riskLevel);
+  const description = getField(FIELD_LABELS.description);
+  const confidenceRaw = getField(FIELD_LABELS.confidence);
 
   // Need at least riskLevel and description for a valid result
   if (!riskLevelRaw || !description) {
@@ -149,7 +180,9 @@ export function parseMarkdownResponse(content: string): {
   // Parse confidence — accept 0-1 or 0-100 scales; default to 0.7 if missing
   let confidence = 0.7;
   if (confidenceRaw) {
-    const parsed = parseFloat(confidenceRaw);
+    // Strip percentage sign if present (e.g. "85%" or "85 %")
+    const cleaned = confidenceRaw.replace(/[%\s]/g, '');
+    const parsed = parseFloat(cleaned);
     if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
       confidence = parsed;
     } else if (!isNaN(parsed) && parsed > 1 && parsed <= 100) {

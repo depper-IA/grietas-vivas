@@ -90,7 +90,7 @@ describe('stripMarkdownJsonWrapper', () => {
 });
 
 describe('parseMarkdownResponse', () => {
-  describe('bold-markdown format', () => {
+  describe('bold-markdown format (English)', () => {
     it('parses the canonical NVIDIA NIM format', () => {
       const content = `**Risk Level:** Critical
 **Description:** Severe structural damage observed.
@@ -120,17 +120,48 @@ describe('parseMarkdownResponse', () => {
     });
   });
 
+  describe('bold-markdown format (Spanish)', () => {
+    it('parses Spanish labels', () => {
+      const content = `**Nivel de Riesgo:** Crítico
+**Descripción:** Daño estructural severo observado.
+**Confianza:** 0.85`;
+
+      const result = parseMarkdownResponse(content);
+      expect(result).toEqual({
+        riskLevel: 'critical',
+        description: 'Daño estructural severo observado.',
+        confidence: 0.85,
+      });
+    });
+
+    it('handles short Spanish labels (Riesgo, Descripción, Confianza)', () => {
+      const content = '**Riesgo:** Alto\n**Descripción:** Grieta visible\n**Confianza:** 90%';
+      const result = parseMarkdownResponse(content);
+      expect(result?.riskLevel).toBe('high');
+      expect(result?.description).toBe('Grieta visible');
+      expect(result?.confidence).toBe(0.9);
+    });
+  });
+
   describe('plain markdown format (no bold)', () => {
-    it('parses plain markdown', () => {
+    it('parses plain markdown in English', () => {
       const content = 'Risk Level: Medium\nDescription: Moderate damage\nConfidence: 0.6';
       const result = parseMarkdownResponse(content);
       expect(result?.riskLevel).toBe('medium');
       expect(result?.description).toBe('Moderate damage');
       expect(result?.confidence).toBe(0.6);
     });
+
+    it('parses plain markdown in Spanish', () => {
+      const content = 'Nivel de Riesgo: Medio\nDescripción: Daño moderado\nConfianza: 0.6';
+      const result = parseMarkdownResponse(content);
+      expect(result?.riskLevel).toBe('medium');
+      expect(result?.description).toBe('Daño moderado');
+      expect(result?.confidence).toBe(0.6);
+    });
   });
 
-  describe('risk level aliasing', () => {
+  describe('risk level aliasing (English)', () => {
     it('maps "minor" to "low"', () => {
       const result = parseMarkdownResponse('**Risk Level:** Minor\n**Description:** x');
       expect(result?.riskLevel).toBe('low');
@@ -157,10 +188,59 @@ describe('parseMarkdownResponse', () => {
     });
   });
 
+  describe('risk level aliasing (Spanish)', () => {
+    it('maps "bajo" to "low"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Bajo\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('low');
+    });
+
+    it('maps "leve" to "low"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Leve\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('low');
+    });
+
+    it('maps "medio" to "medium"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Medio\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('medium');
+    });
+
+    it('maps "alto" to "high"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Alto\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('high');
+    });
+
+    it('maps "grave" to "high"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Grave\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('high');
+    });
+
+    it('maps "crítico" to "critical"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Crítico\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('critical');
+    });
+
+    it('maps "urgente" to "critical"', () => {
+      const result = parseMarkdownResponse('**Nivel:** Urgente\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('critical');
+    });
+
+    it('handles "crítico" without accent', () => {
+      const result = parseMarkdownResponse('**Nivel:** Critico\n**Descripción:** x');
+      expect(result?.riskLevel).toBe('critical');
+    });
+  });
+
   describe('confidence parsing', () => {
     it('accepts 0-100 scale and normalizes to 0-1', () => {
       const result = parseMarkdownResponse(
         '**Risk Level:** Low\n**Description:** x\n**Confidence:** 85',
+      );
+      expect(result?.confidence).toBe(0.85);
+    });
+
+    it('accepts percentage sign', () => {
+      const result = parseMarkdownResponse(
+        '**Risk Level:** Low\n**Description:** x\n**Confidence:** 85%',
       );
       expect(result?.confidence).toBe(0.85);
     });
