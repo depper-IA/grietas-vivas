@@ -6,10 +6,7 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  CheckCircle2,
   Key,
-  CreditCard,
-  Sparkles,
 } from 'lucide-react';
 
 interface GuideItem {
@@ -81,16 +78,16 @@ const GUIDES: GuideItem[] = [
   },
   {
     id: 'openai',
-    providerName: 'OpenAI (Diferencia con ChatGPT Plus)',
-    costLabel: 'Pago por uso (Plataforma Desarrollador)',
+    providerName: 'OpenAI',
+    costLabel: 'Pago por uso (saldo prepago)',
     isFreeTier: false,
     url: 'https://platform.openai.com/api-keys',
     steps: [
-      'Ingresa a platform.openai.com (la suscripción web de ChatGPT Plus de $20/mes no incluye acceso API directo).',
+      'Ingresa a platform.openai.com y crea una cuenta con saldo prepago.',
       'Ve a "API Keys" y haz clic en "Create new secret key".',
       'Copia la clave ("sk-...") y pégala en SafeSpace.',
     ],
-    tips: 'La suscripción de ChatGPT Plus ($20/mes) es para la web chatgpt.com. Para aplicaciones y PWAs se requiere una clave de platform.openai.com con saldo prepago.',
+    tips: 'Requiere recargar saldo mínimo (~$5 USD) en OpenAI Platform para activar las llamadas a la API.',
   },
   {
     id: 'anthropic',
@@ -122,23 +119,12 @@ export function ApiKeyGuide() {
         </div>
         <div>
           <h2 className="text-base font-semibold text-text-primary">
-            Guía: Cómo Obtener Claves API Gratuitas o Propias
+            Guía: Cómo Obtener Claves API
           </h2>
           <p className="text-xs text-text-muted mt-0.5 leading-relaxed">
-            Si los créditos predeterminados del servidor se agotan, puedes conectar tu propia clave en menos de 2 minutos para seguir utilizando la aplicación de forma continua.
+            Si los créditos predeterminados del servidor se agotan, conecta tu propia clave en menos de 2 minutos para seguir utilizando la aplicación de forma continua.
           </p>
         </div>
-      </div>
-
-      {/* Nota aclaratoria sobre ChatGPT Plus vs API */}
-      <div className="rounded-xl border border-status-info-border bg-status-info/10 p-3.5 text-xs text-text-secondary space-y-1">
-        <div className="font-semibold text-text-primary flex items-center gap-1.5">
-          <CreditCard className="h-4 w-4 text-brand-accent shrink-0" />
-          <span>Sobre suscripciones como ChatGPT Plus o Claude Pro:</span>
-        </div>
-        <p className="leading-relaxed">
-          Las suscripciones mensuales de $20/mes (ChatGPT Plus / Claude Pro) están restringidas a sus interfaces web oficiales. Las aplicaciones externas y PWAs se conectan mediante <strong>claves de API</strong> (como las de Google Gemini que son 100% gratuitas, o prepagadas en OpenAI/Anthropic/MiniMax).
-        </p>
       </div>
 
       {/* Acordeón de proveedores */}
