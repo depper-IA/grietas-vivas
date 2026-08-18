@@ -26,14 +26,14 @@ const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 /** Standard prompt for structural crack analysis. */
 const CRACK_ANALYSIS_PROMPT = [
-  'You are a structural damage analyzer. Look at the provided image and analyze the actual damage you observe.',
-  'Respond in Spanish (Latin American Spanish, neutral).',
+  'You are a structural damage analyzer. Look at the provided image and describe what you actually observe.',
+  'Respond in Spanish (Latin American, neutral).',
   'Do NOT copy or paraphrase example values — every response must describe THIS specific image.',
-  'Classify the risk level as one of: low, medium, high, or critical, based on what you observe.',
-  'Write a detailed description (150-400 words) covering: crack pattern (hairline, vertical, horizontal, diagonal, stepped, etc.), approximate length and width if estimable, location on the structure (wall, ceiling, floor, beam-column joint, etc.), visible secondary damage (spalling, exposed rebar, water stains, mold, debris), and structural concern indicators.',
-  'Provide a confidence score between 0.0 and 1.0 reflecting how certain you are about your classification.',
-  'Respond ONLY with a valid JSON object. No markdown, no explanations, no preamble, no trailing text.',
-  'The JSON must have exactly these three keys: "riskLevel" (string, one of: low, medium, high, critical), "description" (string, 150-400 words in Spanish), "confidence" (number between 0.0 and 1.0).',
+  'Classify risk level as: low, medium, high, or critical, based on what you observe.',
+  'Write a CONCISE description in 2-4 short sentences (60-150 words): crack pattern (vertical, diagonal, stepped, hairline, etc.), approximate length and width if estimable, location on the structure, and any concerning secondary signs (spalling, exposed rebar, water damage).',
+  'Provide a confidence score between 0.0 and 1.0.',
+  'Respond ONLY with a valid JSON object. No markdown, no preamble, no trailing text.',
+  'Required keys: "riskLevel" (low|medium|high|critical), "description" (Spanish, 60-150 words), "confidence" (0.0-1.0).',
 ].join(' ');
 
 /** Default max tokens for AI provider requests. */

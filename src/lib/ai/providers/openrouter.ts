@@ -49,6 +49,7 @@ export class OpenRouterProvider implements IAIProvider {
         body: JSON.stringify({
           model: this.model,
           max_tokens: payload.maxTokens,
+          temperature: 0.2,
           messages: [
             {
               role: 'user',

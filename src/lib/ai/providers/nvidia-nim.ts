@@ -221,6 +221,7 @@ export class NvidiaNimProvider implements IAIProvider {
         body: JSON.stringify({
           model,
           max_tokens: payload.maxTokens,
+          temperature: 0.2,
           messages: [
             {
               role: 'user',
