@@ -16,6 +16,10 @@ import type {
   RawProviderResponse,
 } from './types';
 import type { SafeErrorResponse } from '@/lib/errors/types';
+import {
+  stripMarkdownJsonWrapper,
+  parseMarkdownResponse,
+} from './responseParser';
 
 /** Maximum allowed image size in bytes (10 MB). */
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -26,7 +30,9 @@ const CRACK_ANALYSIS_PROMPT = [
   'Classify the risk level as one of: low, medium, high, or critical.',
   'Provide a concise description of the damage observed (max 2000 characters).',
   'Include a confidence score between 0.0 and 1.0.',
-  'Respond in JSON format with keys: riskLevel, description, confidence.',
+  'IMPORTANT: Respond ONLY with a valid JSON object. No markdown, no explanations, no preamble.',
+  'The JSON must have exactly these keys: "riskLevel" (one of: low, medium, high, critical), "description" (string, max 2000 chars), "confidence" (number between 0.0 and 1.0).',
+  'Example valid response: {"riskLevel":"high","description":"Vertical crack 3mm wide running from window to floor","confidence":0.85}',
 ].join(' ');
 
 /** Default max tokens for AI provider requests. */
@@ -247,13 +253,28 @@ export class AIServiceAdapter implements IAIServiceAdapter {
   ): AnalysisResult {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(rawResponse.content);
+      // Some providers wrap JSON in markdown code blocks
+      const jsonContent = stripMarkdownJsonWrapper(rawResponse.content);
+      parsed = JSON.parse(jsonContent);
     } catch {
-      this.log('error', `Provider ${providerName} returned unparseable JSON`);
-      throw new AIServiceError(
-        'RESPONSE_PARSE_ERROR',
-        'AI provider response could not be parsed as JSON',
-      );
+      // Fallback: try to parse markdown-formatted response (e.g. **Risk Level:** Critical)
+      const markdownParsed = parseMarkdownResponse(rawResponse.content);
+      if (markdownParsed) {
+        this.log(
+          'info',
+          `Provider ${providerName} returned markdown-formatted response, parsed via fallback`,
+        );
+        parsed = markdownParsed;
+      } else {
+        this.log(
+          'error',
+          `Provider ${providerName} returned unparseable response: ${rawResponse.content.slice(0, 200)}`,
+        );
+        throw new AIServiceError(
+          'RESPONSE_PARSE_ERROR',
+          'AI provider response could not be parsed as JSON',
+        );
+      }
     }
 
     // Enrich with provider name and timestamp before validation
