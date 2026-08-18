@@ -27,6 +27,8 @@ export interface ReportCardData {
   createdAt: string;
   status: string;
   analysisText?: string;
+  /** URL de la miniatura o imagen de la captura */
+  imageUrl?: string | null;
   /** Whether this report comes from local cache (offline) */
   isOfflineCached?: boolean;
   /** Ancho de grieta en mm (opcional, del analisis AI). */
@@ -78,7 +80,7 @@ export function ReportCard({ report }: ReportCardProps) {
       >
         <DamageReportCard
           id={report.id}
-          imageUrl={null}
+          imageUrl={report.imageUrl ?? null}
           imageAlt={report.analysisText ?? 'Reporte de daño estructural'}
           riskLevel={report.riskLevel}
           syncState={syncState}

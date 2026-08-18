@@ -48,11 +48,35 @@ export default function ReportsPage() {
         const supabase = createBrowserSupabaseClient();
         const { data, error } = await supabase
           .from('reports')
-          .select('id, risk_level, created_at, status, analysis_text')
+          .select('id, risk_level, created_at, status, analysis_text, image_storage_path')
           .order('created_at', { ascending: false });
 
         if (error) {
           throw new Error(error.message);
+        }
+
+        // Obtener URLs firmadas para las miniaturas desde Supabase Storage
+        const paths = (data ?? [])
+          .map((row) => row.image_storage_path)
+          .filter((p): p is string => Boolean(p));
+
+        const urlMap = new Map<string, string>();
+        if (paths.length > 0) {
+          try {
+            const { data: signedData } = await supabase.storage
+              .from('captures')
+              .createSignedUrls(paths, 3600);
+
+            if (signedData) {
+              for (const item of signedData) {
+                if (item.signedUrl && item.path) {
+                  urlMap.set(item.path, item.signedUrl);
+                }
+              }
+            }
+          } catch {
+            // Degradación graceful si falla createSignedUrls
+          }
         }
 
         const remoteReports: ReportCardData[] = (data ?? []).map((row) => ({
@@ -61,6 +85,7 @@ export default function ReportsPage() {
           createdAt: row.created_at,
           status: row.status,
           analysisText: row.analysis_text ?? undefined,
+          imageUrl: row.image_storage_path ? urlMap.get(row.image_storage_path) ?? null : null,
           isOfflineCached: false,
         }));
 
@@ -81,14 +106,25 @@ export default function ReportsPage() {
       const captures = await getAllCaptures();
       const cachedReports: ReportCardData[] = captures
         .filter((capture) => capture.analysisResult !== null)
-        .map((capture) => ({
-          id: capture.id,
-          riskLevel: capture.analysisResult!.riskLevel,
-          createdAt: capture.createdAt,
-          status: capture.syncStatus === 'synced' ? 'analyzed' : 'pending',
-          analysisText: capture.analysisResult!.description,
-          isOfflineCached: true,
-        }))
+        .map((capture) => {
+          let localImageUrl: string | null = null;
+          if (capture.imageBlob) {
+            try {
+              localImageUrl = URL.createObjectURL(capture.imageBlob);
+            } catch {
+              localImageUrl = null;
+            }
+          }
+          return {
+            id: capture.id,
+            riskLevel: capture.analysisResult!.riskLevel,
+            createdAt: capture.createdAt,
+            status: capture.syncStatus === 'synced' ? 'analyzed' : 'pending',
+            analysisText: capture.analysisResult!.description,
+            imageUrl: localImageUrl,
+            isOfflineCached: true,
+          };
+        })
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       setReports(cachedReports);
