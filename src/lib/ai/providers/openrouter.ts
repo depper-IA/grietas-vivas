@@ -43,8 +43,8 @@ export class OpenRouterProvider implements IAIProvider {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://safespace-pwa.vercel.app',
-          'X-Title': 'Grietas Vivas - Crack Analysis',
+          'HTTP-Referer': 'https://grietas-vivas.vercel.app',
+          'X-Title': 'Grietas Vivas - Análisis Forense de Grietas Sísmicas',
         },
         body: JSON.stringify({
           model: this.model,

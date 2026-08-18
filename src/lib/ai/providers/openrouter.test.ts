@@ -66,8 +66,8 @@ describe('OpenRouterProvider', () => {
       expect(options.method).toBe('POST');
       expect(options.headers['Authorization']).toBe('Bearer or-test-api-key');
       expect(options.headers['Content-Type']).toBe('application/json');
-      expect(options.headers['HTTP-Referer']).toBe('https://safespace-pwa.vercel.app');
-      expect(options.headers['X-Title']).toBe('Grietas Vivas - Crack Analysis');
+      expect(options.headers['HTTP-Referer']).toBe('https://grietas-vivas.vercel.app');
+      expect(options.headers['X-Title']).toBe('Grietas Vivas - Análisis Forense de Grietas Sísmicas');
 
       // Verify body structure
       const body = JSON.parse(options.body);
