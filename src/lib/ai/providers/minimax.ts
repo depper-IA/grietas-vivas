@@ -1,27 +1,27 @@
 /**
- * OpenRouter AI Provider — Fallback Mode
+ * Minimax AI Provider — BYOK Mode
  *
- * Implements the IAIProvider interface for the OpenRouter API.
- * Used exclusively in fallback mode via Server Actions (API key stays server-side).
+ * Implements the IAIProvider interface for the Minimax API.
+ * Used in BYOK mode via Server Actions (API key stays server-side).
  * Enforces a 15-second timeout. Errors are thrown with clear categorization
  * so the AIServiceAdapter failover chain can route to the next provider.
  */
 
 import type { AnalysisPayload, IAIProvider, RawProviderResponse } from '../types';
 
-/** Timeout for OpenRouter requests (15 seconds per design spec). */
-const OPENROUTER_TIMEOUT_MS = 15_000;
+/** Timeout for Minimax requests (15 seconds per design spec). */
+const MINIMAX_TIMEOUT_MS = 15_000;
 
-/** OpenRouter chat completions endpoint. */
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+/** Minimax chat completions endpoint. */
+const MINIMAX_API_URL = 'https://api.minimax.chat/v1/chat/completions';
 
-/** Default model for vision analysis on OpenRouter. */
-const DEFAULT_MODEL = 'google/gemini-2.0-flash-001';
+/** Default model for vision analysis on Minimax (Vision-Language model). */
+const DEFAULT_MODEL = 'MiniMax-VL-01';
 
-export class OpenRouterProvider implements IAIProvider {
-  public readonly name = 'openrouter';
+export class MinimaxProvider implements IAIProvider {
+  public readonly name = 'minimax';
   private readonly apiKey: string;
-  public readonly model: string;
+  private readonly model: string;
 
   constructor(apiKey: string, model: string = DEFAULT_MODEL) {
     this.apiKey = apiKey;
@@ -30,18 +30,16 @@ export class OpenRouterProvider implements IAIProvider {
 
   async analyze(payload: AnalysisPayload): Promise<RawProviderResponse> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), MINIMAX_TIMEOUT_MS);
 
     try {
       const base64Image = payload.image.toString('base64');
 
-      const response = await fetch(OPENROUTER_API_URL, {
+      const response = await fetch(MINIMAX_API_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://safespace-pwa.vercel.app',
-          'X-Title': 'Grietas Vivas - Crack Analysis',
         },
         body: JSON.stringify({
           model: this.model,
@@ -65,12 +63,12 @@ export class OpenRouterProvider implements IAIProvider {
       if (!response.ok) {
         const status = response.status;
         if (status === 429) {
-          throw new Error(`OpenRouter rate limited (429)`);
+          throw new Error(`Minimax rate limited (429)`);
         }
         if (status === 401 || status === 403) {
-          throw new Error(`OpenRouter authentication failed (${status})`);
+          throw new Error(`Minimax authentication failed (${status})`);
         }
-        throw new Error(`OpenRouter request failed with status ${status}`);
+        throw new Error(`Minimax request failed with status ${status}`);
       }
 
       const data = await response.json();
@@ -80,13 +78,13 @@ export class OpenRouterProvider implements IAIProvider {
         content,
         metadata: {
           model: data?.model ?? this.model,
-          provider: 'openrouter',
+          provider: 'minimax',
           usage: data?.usage,
         },
       };
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('OpenRouter request timeout after 15s');
+        throw new Error('Minimax request timeout after 15s');
       }
       throw error;
     } finally {

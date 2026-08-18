@@ -29,9 +29,11 @@ export interface AIConfig {
   /** BYOK configuration, present only when mode is 'byok' */
   byok?: {
     /** Selected AI provider */
-    provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini';
+    provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'minimax';
     /** User's API key (encrypted in browser memory) */
     apiKey: string;
+    /** Selected model for this provider */
+    model?: string;
   };
   /** Ordered list of fallback provider names by priority */
   fallbackPriority: string[];

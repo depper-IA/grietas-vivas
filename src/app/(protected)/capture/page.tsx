@@ -20,8 +20,14 @@ import { stripExifData } from '@/lib/exif/strip';
 import { analyzeWithFallback } from '@/app/actions/analysis';
 import { syncCapture } from '@/app/actions/sync';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
-import { retrieveEncryptedKey, hasStoredKey } from '@/lib/crypto/byokEncryption';
-import type { AnalysisResult, AIConfig, RiskLevel } from '@/lib/ai/types';
+import { retrieveEncryptedByokConfig, hasStoredKey } from '@/lib/crypto/byokEncryption';
+import type { AnalysisResult, AIConfig, RiskLevel, IAIProvider } from '@/lib/ai/types';
+import { aiService } from '@/lib/ai/aiService';
+import { AnthropicProvider } from '@/lib/ai/providers/anthropic';
+import { OpenAIProvider } from '@/lib/ai/providers/openai';
+import { OpenRouterProvider } from '@/lib/ai/providers/openrouter';
+import { GeminiProvider } from '@/lib/ai/providers/gemini';
+import { MinimaxProvider } from '@/lib/ai/providers/minimax';
 import type { CrackPattern, DangerSignals, TriageOutcome } from '@/lib/validation/schemas';
 import {
   CircleCheck,
@@ -327,22 +333,37 @@ export default function CapturePage() {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.access_token) {
-          const apiKey = await retrieveEncryptedKey(session.access_token);
-          if (apiKey) {
-            const provider: AIConfig['byok'] = {
-              provider: apiKey.startsWith('sk-ant-')
-                ? 'anthropic'
-                : apiKey.startsWith('sk-or-')
-                ? 'openrouter'
-                : apiKey.startsWith('AIza')
-                ? 'gemini'
-                : 'openai',
-              apiKey,
-            };
+          const byokConfig = await retrieveEncryptedByokConfig(session.access_token);
+          if (byokConfig?.apiKey) {
+            const { apiKey, provider, model } = byokConfig;
+            let providerInstance: IAIProvider | null = null;
+
+            switch (provider) {
+              case 'anthropic':
+                providerInstance = new AnthropicProvider(apiKey, model);
+                break;
+              case 'openrouter':
+                providerInstance = new OpenRouterProvider(apiKey, model);
+                break;
+              case 'gemini':
+                providerInstance = new GeminiProvider(apiKey, model);
+                break;
+              case 'minimax':
+                providerInstance = new MinimaxProvider(apiKey, model);
+                break;
+              case 'openai':
+              default:
+                providerInstance = new OpenAIProvider(apiKey, model);
+                break;
+            }
+
+            if (providerInstance) {
+              aiService.registerProvider(providerInstance);
+            }
 
             const config: AIConfig = {
               mode: 'byok',
-              byok: provider,
+              byok: { provider, apiKey, model },
               fallbackPriority: ['openrouter', 'nvidia-nim'],
             };
 
@@ -514,31 +535,38 @@ export default function CapturePage() {
             {(analysisError || captureError) && !isRunningAnalysis && syncStatus !== 'syncing' && syncStatus !== 'synced' && (
               <div
                 role="alert"
-                className="rounded-lg border border-status-critical-border bg-surface-2 p-4 text-center"
+                aria-live="assertive"
+                className="rounded-2xl border border-status-critical-border bg-status-critical/10 backdrop-blur-sm p-5 shadow-lg shadow-status-critical/10"
               >
-                <CircleX
-                  className="mx-auto mb-2 h-5 w-5 text-status-critical-fg"
-                  aria-hidden="true"
-                />
-                <p className="text-sm font-medium text-status-critical-fg">
-                  Error en el análisis
-                </p>
-                <p className="mt-1 text-xs text-status-critical-fg/80">
-                  {captureError || analysisError?.message || 'Falló el análisis. Por favor reintenta.'}
-                </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-critical/20">
+                    <CircleX
+                      className="h-5 w-5 text-status-critical-fg"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-status-critical-fg">
+                      Error en el análisis
+                    </p>
+                    <p className="mt-1 text-xs text-status-critical-fg/80 max-h-20 overflow-y-auto">
+                      {captureError || analysisError?.message || 'Falló el análisis. Por favor reintenta.'}
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setCaptureError(null);
                     void triggerAnalysis();
                   }}
-                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-cta px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-cta/90 focus:outline-none focus:ring-2 focus:ring-brand-accent"
+                  className="mt-4 w-full min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-brand-cta px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-cta/25 hover:bg-brand-cta/90 active:scale-[0.98] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
                   Reintentar análisis
                 </button>
                 {analysisState === 'retrying' && (
-                  <p className="mt-2 flex items-center justify-center gap-1 text-xs text-status-moderate-fg">
+                  <p className="mt-3 flex items-center justify-center gap-2 text-xs text-status-moderate-fg">
                     <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
                     Reintentando automáticamente
                   </p>
@@ -550,18 +578,25 @@ export default function CapturePage() {
             {syncStatus === 'error' && (
               <div
                 role="alert"
-                className="rounded-lg border border-status-critical-border bg-surface-2 p-4 text-center"
+                aria-live="assertive"
+                className="rounded-2xl border border-status-critical-border bg-status-critical/10 backdrop-blur-sm p-5 shadow-lg shadow-status-critical/10"
               >
-                <CircleX
-                  className="mx-auto mb-2 h-5 w-5 text-status-critical-fg"
-                  aria-hidden="true"
-                />
-                <p className="text-sm font-medium text-status-critical-fg">
-                  Error al sincronizar
-                </p>
-                <p className="mt-1 text-xs text-status-critical-fg/80">
-                  {syncError || 'No se pudo guardar el reporte.'}
-                </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-critical/20">
+                    <CircleX
+                      className="h-5 w-5 text-status-critical-fg"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-status-critical-fg">
+                      Error al sincronizar
+                    </p>
+                    <p className="mt-1 text-xs text-status-critical-fg/80 max-h-20 overflow-y-auto">
+                      {syncError || 'No se pudo guardar el reporte.'}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 

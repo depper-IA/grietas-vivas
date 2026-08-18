@@ -10,7 +10,7 @@
 import type { IAIProvider, AnalysisPayload, RawProviderResponse } from '../types';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = 'gemini-2.0-flash';
 const TIMEOUT_MS = 60_000;
 
 const SYSTEM_PROMPT = `You are a structural damage assessment AI. Analyze the provided image of a building crack and respond in JSON format with:
@@ -24,9 +24,11 @@ export class GeminiProvider implements IAIProvider {
   name = 'gemini';
 
   private apiKey: string;
+  readonly model: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
     this.apiKey = apiKey;
+    this.model = model;
   }
 
   async analyze(payload: AnalysisPayload): Promise<RawProviderResponse> {
@@ -57,7 +59,7 @@ export class GeminiProvider implements IAIProvider {
         },
       };
 
-      const url = `${GEMINI_API_BASE}/models/${MODEL}:generateContent?key=${this.apiKey}`;
+      const url = `${GEMINI_API_BASE}/models/${this.model}:generateContent?key=${this.apiKey}`;
 
       const response = await fetch(url, {
         method: 'POST',

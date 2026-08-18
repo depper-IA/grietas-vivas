@@ -22,7 +22,7 @@ function createPayload(): AnalysisPayload {
 function createSuccessResponse(content: string = '{"riskLevel":"medium","description":"Crack found","confidence":0.8}') {
   return {
     choices: [{ message: { content } }],
-    model: 'google/gemini-2.0-flash-exp:free',
+    model: 'google/gemini-2.0-flash-001',
     usage: { prompt_tokens: 100, completion_tokens: 50 },
   };
 }
@@ -71,7 +71,7 @@ describe('OpenRouterProvider', () => {
 
       // Verify body structure
       const body = JSON.parse(options.body);
-      expect(body.model).toBe('google/gemini-2.0-flash-exp:free');
+      expect(body.model).toBe('google/gemini-2.0-flash-001');
       expect(body.max_tokens).toBe(1024);
       expect(body.messages[0].role).toBe('user');
       expect(body.messages[0].content).toHaveLength(2);
@@ -82,7 +82,7 @@ describe('OpenRouterProvider', () => {
       // Verify response parsing
       expect(result.content).toBe('{"riskLevel":"medium","description":"Crack found","confidence":0.8}');
       expect(result.metadata?.provider).toBe('openrouter');
-      expect(result.metadata?.model).toBe('google/gemini-2.0-flash-exp:free');
+      expect(result.metadata?.model).toBe('google/gemini-2.0-flash-001');
     });
 
     it('sends image as base64 data URL', async () => {

@@ -1,7 +1,9 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import type { CaptureMetadata } from '@/lib/capture/types';
-import { Camera, MapPin, Compass, Clock, Fingerprint } from 'lucide-react';
+import { Camera, MapPin, Compass, Clock, Fingerprint, Download, Loader2, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export interface CapturePreviewProps {
   /** URL del objeto de la imagen capturada */
@@ -21,6 +23,58 @@ export function CapturePreview({
   metadata,
   onDismiss,
 }: CapturePreviewProps) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSaveToDevice = useCallback(async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `grieta_${timestamp}.jpg`;
+
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as unknown as { showSaveFilePicker: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+          suggestedName: filename,
+          types: [
+            {
+              description: 'Imagen JPEG',
+              accept: { 'image/jpeg': ['.jpg', '.jpeg'] },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+      }
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setSaveError('No se pudo guardar la foto');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [imageUrl]);
+
   return (
     <section className="flex flex-col gap-4 w-full" aria-label="Vista previa de captura">
       {/* Imagen previa */}
@@ -85,16 +139,69 @@ export function CapturePreview({
       </div>
 
       {/* Botón de acción */}
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="w-full min-h-[48px] flex items-center justify-center gap-2 py-3 px-4 bg-surface-2 border border-border-default text-text-primary font-medium rounded-xl
-          hover:bg-surface-3 active:scale-[0.98] transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
-      >
-        <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>Tomar otra foto</span>
-      </button>
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={handleSaveToDevice}
+          disabled={isSaving}
+          className="w-full min-h-[48px] flex items-center justify-center gap-2 py-3 px-4 bg-brand-cta text-white font-semibold rounded-xl
+            hover:bg-brand-cta/90 active:scale-[0.98] transition-all duration-150 shadow-lg shadow-brand-cta/20
+            focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0
+            disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {isSaving ? (
+              <motion.span
+                key="saving"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-2"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                <span>Guardando...</span>
+              </motion.span>
+            ) : saveSuccess ? (
+              <motion.span
+                key="success"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                <span>Guardada</span>
+              </motion.span>
+            ) : (
+              <motion.span
+                key="save"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span>Guardar en dispositivo</span>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+
+        {saveError && (
+          <p role="alert" className="text-xs text-status-critical-fg text-center">{saveError}</p>
+        )}
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="w-full min-h-[48px] flex items-center justify-center gap-2 py-3 px-4 bg-surface-2 border border-border-default text-text-primary font-medium rounded-xl
+            hover:bg-surface-3 active:scale-[0.98] transition-all duration-150
+            focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
+        >
+          <Camera className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>Tomar otra foto</span>
+        </button>
+      </div>
     </section>
   );
 }

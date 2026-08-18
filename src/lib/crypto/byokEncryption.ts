@@ -177,6 +177,59 @@ export async function decryptApiKey(
   }
 }
 
+export interface StoredByokConfig {
+  apiKey: string;
+  provider: 'anthropic' | 'openai' | 'openrouter' | 'gemini' | 'minimax';
+  model?: string;
+}
+
+/**
+ * Encrypts and stores a complete BYOK configuration (API key + provider + selected model) in sessionStorage.
+ */
+export async function storeEncryptedByokConfig(
+  config: StoredByokConfig,
+  sessionToken: string
+): Promise<void> {
+  const payload = JSON.stringify(config);
+  await storeEncryptedKey(payload, sessionToken);
+}
+
+/**
+ * Retrieves and decrypts the stored BYOK configuration from sessionStorage.
+ * Supports both modern structured JSON and legacy plain string keys.
+ */
+export async function retrieveEncryptedByokConfig(
+  sessionToken: string
+): Promise<StoredByokConfig | null> {
+  const decrypted = await retrieveEncryptedKey(sessionToken);
+  if (!decrypted) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(decrypted);
+    if (parsed && typeof parsed === 'object' && typeof parsed.apiKey === 'string') {
+      return parsed as StoredByokConfig;
+    }
+  } catch {
+    // Legacy format where only apiKey was stored as plain string
+  }
+
+  // Fallback detection for raw apiKey string
+  let provider: StoredByokConfig['provider'] = 'openai';
+  if (decrypted.startsWith('sk-ant-')) {
+    provider = 'anthropic';
+  } else if (decrypted.startsWith('sk-or-')) {
+    provider = 'openrouter';
+  } else if (decrypted.startsWith('AIza')) {
+    provider = 'gemini';
+  } else if (decrypted.startsWith('eyJ') || decrypted.match(/^minimax-/i)) {
+    provider = 'minimax';
+  }
+
+  return { apiKey: decrypted, provider };
+}
+
 /**
  * Encrypts and stores an API key in sessionStorage.
  *

@@ -13,14 +13,14 @@ import type { AnalysisPayload, IAIProvider, RawProviderResponse } from '../types
 /** OpenAI Chat Completions API endpoint. */
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
-/** Vision-capable model identifier. */
-const MODEL = 'gpt-4o';
+/** Vision-capable model identifier por defecto. */
+const DEFAULT_MODEL = 'gpt-4o';
 
 /** Maximum request timeout in milliseconds (60 seconds per Req 5.5). */
 const TIMEOUT_MS = 60_000;
 
 /**
- * BYOK provider for OpenAI's GPT-4o API.
+ * BYOK provider for OpenAI's GPT-4o / vision API.
  *
  * The API key is injected at construction and used for all subsequent requests.
  * Each request enforces a 60-second timeout via AbortController.
@@ -28,9 +28,11 @@ const TIMEOUT_MS = 60_000;
 export class OpenAIProvider implements IAIProvider {
   readonly name = 'openai';
   private readonly apiKey: string;
+  readonly model: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
     this.apiKey = apiKey;
+    this.model = model;
   }
 
   /**
@@ -47,7 +49,7 @@ export class OpenAIProvider implements IAIProvider {
       const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
       const body = {
-        model: MODEL,
+        model: this.model,
         max_tokens: payload.maxTokens,
         messages: [
           {
@@ -130,8 +132,8 @@ export class OpenAIProvider implements IAIProvider {
 }
 
 /**
- * Factory function to create an OpenAI provider with a given API key.
+ * Factory function to create an OpenAI provider with a given API key and optional model.
  */
-export function createOpenAIProvider(apiKey: string): OpenAIProvider {
-  return new OpenAIProvider(apiKey);
+export function createOpenAIProvider(apiKey: string, model?: string): OpenAIProvider {
+  return new OpenAIProvider(apiKey, model);
 }

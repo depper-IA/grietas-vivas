@@ -75,7 +75,7 @@
 | Edge Functions | Supabase Edge Functions (Deno) | Generacion de reportes PDF |
 | Cache Offline | IndexedDB (via `idb`) | Persistencia local offline-first |
 | PWA | Serwist o next-pwa | Service Worker, manifest, cache strategies |
-| AI Service | Adapter Pattern (Strategy) | BYOK (Anthropic/OpenAI) + Fallback (OpenRouter/NVIDIA NIM) |
+| AI Service | Adapter Pattern (Strategy) | BYOK (Anthropic / OpenAI / Gemini / MiniMax / OpenRouter con selección de modelos de visión) + Fallback (OpenRouter / NVIDIA NIM) |
 | Testing | Vitest + fast-check | Unit tests + property-based testing |
 | Lenguaje | TypeScript (estricto) | Todo el proyecto |
 
@@ -335,4 +335,4 @@ Si hay errores de compilacion o tests fallidos, corregir ANTES de continuar con 
 
 ---
 
-**Ultima actualizacion:** 2026-08-16 - SafeSpace / Earthquake Crack Triage PWA / Next.js + Supabase + pnpm
+**Ultima actualizacion:** 2026-08-18 - SafeSpace / Earthquake Crack Triage PWA / Next.js + Supabase + pnpm

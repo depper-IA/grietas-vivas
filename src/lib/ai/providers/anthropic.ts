@@ -16,8 +16,8 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 /** API version header value. */
 const ANTHROPIC_VERSION = '2023-06-01';
 
-/** Vision-capable model identifier. */
-const MODEL = 'claude-sonnet-4-20250514';
+/** Vision-capable model identifier por defecto (Claude 3.7 Sonnet). */
+const DEFAULT_MODEL = 'claude-3-7-sonnet-20250219';
 
 /** Maximum request timeout in milliseconds (60 seconds per Req 5.5). */
 const TIMEOUT_MS = 60_000;
@@ -31,9 +31,11 @@ const TIMEOUT_MS = 60_000;
 export class AnthropicProvider implements IAIProvider {
   readonly name = 'anthropic';
   private readonly apiKey: string;
+  readonly model: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
     this.apiKey = apiKey;
+    this.model = model;
   }
 
   /**
@@ -49,7 +51,7 @@ export class AnthropicProvider implements IAIProvider {
       const base64Image = payload.image.toString('base64');
 
       const body = {
-        model: MODEL,
+        model: this.model,
         max_tokens: payload.maxTokens,
         messages: [
           {
@@ -138,8 +140,8 @@ export class AnthropicProvider implements IAIProvider {
 }
 
 /**
- * Factory function to create an Anthropic provider with a given API key.
+ * Factory function to create an Anthropic provider with a given API key and optional model.
  */
-export function createAnthropicProvider(apiKey: string): AnthropicProvider {
-  return new AnthropicProvider(apiKey);
+export function createAnthropicProvider(apiKey: string, model?: string): AnthropicProvider {
+  return new AnthropicProvider(apiKey, model);
 }
