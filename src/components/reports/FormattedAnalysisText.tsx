@@ -80,7 +80,20 @@ function detectCategory(
 
   // Detección contextual por contenido
   const lower = cleanLine.toLowerCase();
-  if (lower.includes('patrón') || lower.includes('grieta diagonal') || lower.includes('grieta vertical') || lower.includes('cizallamiento') || lower.includes('fisura')) {
+  if (
+    lower.includes('patrón') ||
+    lower.includes('patron') ||
+    lower.includes('grieta en x') ||
+    lower.includes('en forma de x') ||
+    lower.includes('grieta diagonal') ||
+    lower.includes('grieta vertical') ||
+    lower.includes('grieta horizontal') ||
+    lower.includes('escalonada') ||
+    lower.includes('en escalera') ||
+    lower.includes('cizallamiento') ||
+    lower.includes('cortante') ||
+    lower.includes('fisura')
+  ) {
     return {
       category: 'patron',
       label: 'Patrón y Mecanismo',

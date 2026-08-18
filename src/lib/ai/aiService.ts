@@ -25,20 +25,41 @@ import {
 /** Maximum allowed image size in bytes (10 MB). */
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
-/** Standard prompt for structural crack analysis — 100% en español. */
+/**
+ * Standard prompt for structural crack analysis.
+ * Basado estrictamente en la Guía Oficial de Evaluación Post-Sismo (NSR-10 / CENAPRED / FEMA 306).
+ */
 const CRACK_ANALYSIS_PROMPT = [
-  'Eres un especialista en evaluación forense de daños y patologías estructurales.',
-  'Analiza la imagen adjunta y genera un reporte técnico profesional, conciso y 100% en ESPAÑOL.',
-  'Clasifica el nivel de riesgo en uno de estos valores exactos: "low", "medium", "high" o "critical".',
-  'Redacta la descripción estructurada en 3 o 4 líneas breves en español (60 a 130 palabras en total):',
-  'Patrón: [Tipo de fisura o mecanismo de falla visible]',
-  'Ubicación: [Elemento constructivo o estructural afectado]',
-  'Severidad: [Nivel de compromiso estructural y signos de alerta]',
-  'Recomendación: [Acción técnica preventiva inmediata]',
-  'Asigna un puntaje de confianza (confidence) entre 0.0 y 1.0.',
-  'Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin bloques de código markdown.',
-  'Esquema requerido: {"riskLevel":"low"|"medium"|"high"|"critical","description":"...","confidence":0.0-1.0}',
-].join(' ');
+  'Eres un perito e ingeniero especialista en evaluación forense de daños y triaje estructural post-sismo.',
+  'Analiza minuciosamente la imagen adjunta aplicando la siguiente MATRIZ OFICIAL DE DAÑOS Y SEVERIDAD SÍSMICA:',
+  '1. CRÍTICO (riskLevel: "critical"):',
+  '   - Grietas que forman "X" o grietas diagonales cruzadas en muros de carga/mampostería (falla por cortante sísmico bidireccional).',
+  '   - Daño en elementos estructurales principales: vigas, columnas o nudos viga-columna (grietas diagonales por cortante o flexión).',
+  '   - Concreto desprendido (spalling) con acero de refuerzo/varilla visible o corroída.',
+  '   - Columnas o muros inclinados, aplastados o pandeados.',
+  '2. ALTO (riskLevel: "high"):',
+  '   - Grieta diagonal individual (≈45°) o grietas en escalera que atraviesan ladrillos/bloques en muros portantes.',
+  '   - Grietas horizontales extensas en muros por empujes o flexión.',
+  '   - Grietas profundas con separación visible entre muro y losa o columna.',
+  '3. MEDIO / MODERADO (riskLevel: "medium"):',
+  '   - Fisuras diagonales desde esquinas de puertas o ventanas por concentración de esfuerzos.',
+  '   - Separación vertical en la junta muro-columna (muro divisorio no estructural).',
+  '   - Grieta horizontal en la parte superior del muro bajo la viga o losa.',
+  '4. BAJO (riskLevel: "low"):',
+  '   - Fisuras superficiales capilares (<0.3 mm) en revoque, estuco o pintura (daño meramente cosmético).',
+  '   - Fisuras verticales finas por retracción de fraguado.',
+  '',
+  'REGLAS DE EVALUACIÓN Y SALIDA:',
+  '- Todo el reporte debe estar 100% en español.',
+  '- Sé directo, contundente y técnicamente certero. Si observas una grieta en "X", nómbrala explícitamente como "Grietas en X por cortante sísmico" y califícala como "critical".',
+  '- Redacta el campo "description" estructurado exactamente en estas 4 líneas:',
+  '  Patrón: [Tipo exacto de grieta según la matriz: ej. Grietas en X / Diagonal a 45° / Escalonada / Capilar]',
+  '  Ubicación: [Elemento afectado: muro de carga, columna, viga, nudo, tabique divisorio, etc.]',
+  '  Severidad: [Nivel de riesgo técnico y justificación física del daño observado]',
+  '  Recomendación: [Indicación clara: ej. NO HABITAR y solicitar peritaje urgente / Monitorear / Habitable]',
+  '- "confidence": número entre 0.0 y 1.0 según la claridad visual de la imagen.',
+  '- Responde ÚNICAMENTE con un JSON válido, sin bloques de código markdown: {"riskLevel":"low"|"medium"|"high"|"critical","description":"...","confidence":0.0-1.0}',
+].join('\n');
 
 /** Default max tokens for AI provider requests. */
 const DEFAULT_MAX_TOKENS = 1024;
