@@ -336,9 +336,9 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* Estado del servidor */}
+        {/* Estado del servidor (solo cuando NO hay BYOK configurado y se está en modo servidor) */}
         {activeTab === 'fallback' && !configuredProvider && (
-          <section className="rounded-2xl border border-border-default bg-surface-1 p-5 shadow-sm space-y-3">
+          <section className="rounded-2xl border border-border-default bg-surface-1 p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-xl bg-brand-accent/10 flex items-center justify-center text-brand-accent shrink-0">
                 <Cpu className="h-5 w-5" />
@@ -348,256 +348,262 @@ export default function SettingsPage() {
                   Motor de IA Predeterminado del Servidor
                 </p>
                 <p className="text-xs text-text-muted mt-0.5">
-                  NVIDIA NIM — Modelo: <span className="font-mono text-text-primary font-semibold">minimaxai/minimax-m3</span>
+                  NVIDIA NIM · <span className="font-mono text-text-primary font-semibold">minimaxai/minimax-m3</span>
                 </p>
               </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-status-minor/20 text-status-minor-fg shrink-0">
+                Activo
+              </span>
             </div>
-            <p className="text-xs text-text-secondary leading-relaxed pt-2 border-t border-border-subtle">
-              Los análisis usan los recursos y cuotas compartidas del servidor. Para análisis ilimitados y autosostenibilidad, activa el modo BYOK e ingresa tu propia clave de Google Gemini (gratis), OpenRouter, MiniMax, NVIDIA o OpenAI.
+            <p className="text-xs text-text-secondary leading-relaxed pt-3 border-t border-border-subtle">
+              Este proveedor es fijo y compartido por todos los usuarios. Si las cuotas del servidor se agotan, los análisis podrían fallar o ralentizarse. Configura tu propia clave en modo BYOK para usar tus propios créditos y mantener disponibilidad ilimitada.
             </p>
           </section>
         )}
 
-        {/* Pastillas de selección de proveedores (Pills) */}
-        <div className="space-y-2">
-          <label className="block text-xs font-bold uppercase tracking-wider text-text-muted">
-            Selecciona Gateway / Proveedor
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {PROVIDER_ORDER.map((provKey) => {
-              const meta = PROVIDER_METADATA[provKey];
-              const isSelected = selectedProvider === provKey;
+        {/* SECCIÓN BYOK — Solo visible cuando el usuario está en modo BYOK */}
+        {(activeTab === 'byok' || configuredProvider) && (
+          <>
+            {/* Pastillas de selección de proveedores (Pills) */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-text-muted">
+                Selecciona Proveedor
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {PROVIDER_ORDER.map((provKey) => {
+                  const meta = PROVIDER_METADATA[provKey];
+                  const isSelected = selectedProvider === provKey;
 
-              return (
-                <button
-                  key={provKey}
-                  type="button"
-                  onClick={() => handleSelectProvider(provKey)}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-medium border transition-all duration-150 ${
-                    isSelected
-                      ? 'bg-brand-accent text-white border-brand-accent shadow-sm'
-                      : 'bg-surface-1 text-text-secondary border-border-default hover:bg-surface-2 hover:text-text-primary'
-                  }`}
+                  return (
+                    <button
+                      key={provKey}
+                      type="button"
+                      onClick={() => handleSelectProvider(provKey)}
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-medium border transition-all duration-150 ${
+                        isSelected
+                          ? 'bg-brand-accent text-white border-brand-accent shadow-sm'
+                          : 'bg-surface-1 text-text-secondary border-border-default hover:bg-surface-2 hover:text-text-primary'
+                      }`}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          isSelected ? 'bg-white' : 'bg-text-muted'
+                        }`}
+                      />
+                      <span>{meta.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Tarjeta de configuración del proveedor activo */}
+            <form onSubmit={handleSave} className="rounded-2xl border border-border-default bg-surface-1 p-5 sm:p-6 shadow-sm space-y-5" noValidate>
+              {/* Header de la tarjeta */}
+              <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
+                <h2 className="text-base font-semibold text-text-primary">
+                  {currentMeta.name}
+                </h2>
+                {currentMeta.keyUrl && (
+                  <a
+                    href={currentMeta.keyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-accent hover:underline"
+                  >
+                    <span>Obtener clave</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
+
+              {/* Banner informativo de privacidad */}
+              <div className="rounded-xl border border-status-info-border/50 bg-surface-2/60 p-3 text-xs text-text-secondary leading-relaxed">
+                Esta configuración se almacena cifrada en este navegador (AES-256-GCM) y se envía directamente al proveedor sin pasar por el servidor.
+              </div>
+
+              {/* Feedback alertas */}
+              <AnimatePresence mode="wait">
+                {error && (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    role="alert"
+                    aria-live="assertive"
+                    className="flex items-start gap-2.5 rounded-xl border border-status-critical-border bg-status-critical/15 p-3.5 text-xs sm:text-sm text-status-critical-fg"
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span className="flex-1 font-medium">{error}</span>
+                  </motion.div>
+                )}
+                {success && (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    role="status"
+                    aria-live="polite"
+                    className="flex items-start gap-2.5 rounded-xl border border-status-minor-border bg-status-minor/15 p-3.5 text-xs sm:text-sm text-status-minor-fg"
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span className="flex-1 font-medium">{success}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Preajuste de gateway */}
+              <div className="space-y-1.5">
+                <label htmlFor="gateway-preset" className="block text-xs font-semibold text-text-primary">
+                  Preajuste de gateway
+                </label>
+                <select
+                  id="gateway-preset"
+                  value={selectedProvider}
+                  onChange={(e) => handleSelectProvider(e.target.value as AIProvider)}
+                  className="w-full rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-sm text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
                 >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isSelected ? 'bg-white' : 'bg-text-muted'
-                    }`}
+                  {PROVIDER_ORDER.map((provKey) => (
+                    <option key={provKey} value={provKey}>
+                      {PROVIDER_METADATA[provKey].name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Clave de API */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="api-key" className="block text-xs font-semibold text-text-primary">
+                    Clave de API *
+                  </label>
+                </div>
+                <div className="relative">
+                  <input
+                    ref={apiKeyInputRef}
+                    id="api-key"
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={configuredProvider === selectedProvider ? '••••••••••••••••••••••••' : 'Ingresa tu API Key...'}
+                    autoComplete="off"
+                    className="block w-full min-h-[46px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 pr-20 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
                   />
-                  <span>{meta.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex items-center gap-1 px-3 text-xs font-medium text-text-muted hover:text-text-primary rounded-r-xl"
+                  >
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <span>{showKey ? 'Ocultar' : 'Mostrar'}</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-text-muted">{currentMeta.keyHint}</p>
+              </div>
 
-        {/* Tarjeta de configuración del proveedor activo */}
-        <form onSubmit={handleSave} className="rounded-2xl border border-border-default bg-surface-1 p-5 sm:p-6 shadow-sm space-y-5" noValidate>
-          {/* Header de la tarjeta */}
-          <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-text-primary">
-                {currentMeta.name}
-              </h2>
-            </div>
-            {currentMeta.keyUrl && (
-              <a
-                href={currentMeta.keyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-accent hover:underline"
-              >
-                <span>Obtener clave</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </div>
+              {/* URL base */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="base-url" className="block text-xs font-semibold text-text-primary">
+                    URL base *
+                  </label>
+                  {baseUrl !== currentMeta.defaultBaseUrl && (
+                    <button
+                      type="button"
+                      onClick={handleResetBaseUrl}
+                      className="inline-flex items-center gap-1 text-[11px] text-brand-accent hover:underline"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>Restablecer</span>
+                    </button>
+                  )}
+                </div>
+                <input
+                  id="base-url"
+                  type="text"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  className="block w-full min-h-[44px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2 text-xs sm:text-sm font-mono text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
+                />
+              </div>
 
-          {/* Banner informativo de privacidad */}
-          <div className="rounded-xl border border-status-info-border/50 bg-surface-2/60 p-3 text-xs text-text-secondary leading-relaxed">
-            Esta configuración se almacena cifrada en este navegador (AES-256-GCM) y se envía directamente al proveedor sin pasar por el servidor.
-          </div>
+              {/* Tokens máx. */}
+              <div className="space-y-1.5">
+                <label htmlFor="max-tokens" className="block text-xs font-semibold text-text-primary">
+                  Tokens máx. (opcional)
+                </label>
+                <input
+                  id="max-tokens"
+                  type="number"
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(e.target.value)}
+                  placeholder="2048"
+                  className="block w-full min-h-[44px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2 text-xs sm:text-sm font-mono text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
+                />
+              </div>
 
-          {/* Feedback alertas */}
-          <AnimatePresence mode="wait">
-            {error && (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                role="alert"
-                aria-live="assertive"
-                className="flex items-start gap-2.5 rounded-xl border border-status-critical-border bg-status-critical/15 p-3.5 text-xs sm:text-sm text-status-critical-fg"
-              >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span className="flex-1 font-medium">{error}</span>
-              </motion.div>
-            )}
-            {success && (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                role="status"
-                aria-live="polite"
-                className="flex items-start gap-2.5 rounded-xl border border-status-minor-border bg-status-minor/15 p-3.5 text-xs sm:text-sm text-status-minor-fg"
-              >
-                <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-                <span className="flex-1 font-medium">{success}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Preajuste de gateway */}
-          <div className="space-y-1.5">
-            <label htmlFor="gateway-preset" className="block text-xs font-semibold text-text-primary">
-              Preajuste de gateway
-            </label>
-            <select
-              id="gateway-preset"
-              value={selectedProvider}
-              onChange={(e) => handleSelectProvider(e.target.value as AIProvider)}
-              className="w-full rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-sm text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
-            >
-              {PROVIDER_ORDER.map((provKey) => (
-                <option key={provKey} value={provKey}>
-                  {PROVIDER_METADATA[provKey].name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Clave de API */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="api-key" className="block text-xs font-semibold text-text-primary">
-                Clave de API *
-              </label>
-            </div>
-            <div className="relative">
-              <input
-                ref={apiKeyInputRef}
-                id="api-key"
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={configuredProvider === selectedProvider ? '••••••••••••••••••••••••' : 'Ingresa tu API Key...'}
-                autoComplete="off"
-                className="block w-full min-h-[46px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 pr-20 text-sm font-mono text-text-primary placeholder:text-text-muted focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey((prev) => !prev)}
-                className="absolute inset-y-0 right-0 flex items-center gap-1 px-3 text-xs font-medium text-text-muted hover:text-text-primary rounded-r-xl"
-              >
-                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                <span>{showKey ? 'Ocultar' : 'Mostrar'}</span>
-              </button>
-            </div>
-            <p className="text-[11px] text-text-muted">{currentMeta.keyHint}</p>
-          </div>
-
-          {/* URL base */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="base-url" className="block text-xs font-semibold text-text-primary">
-                URL base *
-              </label>
-              {baseUrl !== currentMeta.defaultBaseUrl && (
-                <button
-                  type="button"
-                  onClick={handleResetBaseUrl}
-                  className="inline-flex items-center gap-1 text-[11px] text-brand-accent hover:underline"
+              {/* Modelo */}
+              <div className="space-y-1.5">
+                <label htmlFor="model-select" className="block text-xs font-semibold text-text-primary">
+                  Modelo *
+                </label>
+                <select
+                  id="model-select"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="w-full rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-xs sm:text-sm text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
                 >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Restablecer</span>
-                </button>
-              )}
-            </div>
-            <input
-              id="base-url"
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              className="block w-full min-h-[44px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2 text-xs sm:text-sm font-mono text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
-            />
-          </div>
+                  {currentMeta.models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} {m.badge ? `[${m.badge}]` : ''}
+                    </option>
+                  ))}
+                </select>
 
-          {/* Tokens máx. */}
-          <div className="space-y-1.5">
-            <label htmlFor="max-tokens" className="block text-xs font-semibold text-text-primary">
-              Tokens máx. (opcional)
-            </label>
-            <input
-              id="max-tokens"
-              type="number"
-              value={maxTokens}
-              onChange={(e) => setMaxTokens(e.target.value)}
-              placeholder="2048"
-              className="block w-full min-h-[44px] rounded-xl border border-border-default bg-surface-2 px-3.5 py-2 text-xs sm:text-sm font-mono text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
-            />
-          </div>
+                {model === 'custom' && (
+                  <input
+                    type="text"
+                    placeholder="Ingresa el ID del modelo (ej. mistralai/pixtral-12b)"
+                    value={customModel}
+                    onChange={(e) => setCustomModel(e.target.value)}
+                    className="w-full mt-2 rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-xs font-mono text-text-primary placeholder:text-text-muted focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
+                  />
+                )}
+              </div>
 
-          {/* Modelo */}
-          <div className="space-y-1.5">
-            <label htmlFor="model-select" className="block text-xs font-semibold text-text-primary">
-              Modelo *
-            </label>
-            <select
-              id="model-select"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-xs sm:text-sm text-text-primary focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
-            >
-              {currentMeta.models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label} {m.badge ? `[${m.badge}]` : ''}
-                </option>
-              ))}
-            </select>
+              {/* Botones de acción */}
+              <div className="pt-2 flex flex-col gap-3 sm:flex-row">
+                <MotionButton
+                  ref={saveButtonRef}
+                  type="submit"
+                  disabled={loading}
+                  buttonProps={{
+                    className:
+                      'flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-md shadow-brand-cta/20 hover:bg-brand-cta/90 active:scale-[0.98] transition-all disabled:opacity-50',
+                  }}
+                >
+                  <Save className="h-4 w-4 shrink-0" />
+                  <span>{loading ? 'Guardando...' : 'Guardar Configuración'}</span>
+                </MotionButton>
 
-            {model === 'custom' && (
-              <input
-                type="text"
-                placeholder="Ingresa el ID del modelo (ej. mistralai/pixtral-12b)"
-                value={customModel}
-                onChange={(e) => setCustomModel(e.target.value)}
-                className="w-full mt-2 rounded-xl border border-border-default bg-surface-2 px-3.5 py-2.5 text-xs font-mono text-text-primary placeholder:text-text-muted focus:border-brand-accent focus:outline-none focus:ring-1 focus:ring-brand-accent"
-              />
-            )}
-          </div>
+                {configuredProvider && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-status-critical-border bg-surface-2 px-4 py-3 text-sm font-medium text-status-critical-fg hover:bg-status-critical/10 active:scale-[0.98] transition-all"
+                  >
+                    <Trash2 className="h-4 w-4 shrink-0" />
+                    <span>Restablecer Servidor</span>
+                  </button>
+                )}
+              </div>
+            </form>
+          </>
+        )}
 
-          {/* Botones de acción */}
-          <div className="pt-2 flex flex-col gap-3 sm:flex-row">
-            <MotionButton
-              ref={saveButtonRef}
-              type="submit"
-              disabled={loading}
-              buttonProps={{
-                className:
-                  'flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-brand-cta px-6 py-3 text-sm font-semibold text-white shadow-md shadow-brand-cta/20 hover:bg-brand-cta/90 active:scale-[0.98] transition-all disabled:opacity-50',
-              }}
-            >
-              <Save className="h-4 w-4 shrink-0" />
-              <span>{loading ? 'Guardando...' : 'Guardar Configuración'}</span>
-            </MotionButton>
-
-            {configuredProvider && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-status-critical-border bg-surface-2 px-4 py-3 text-sm font-medium text-status-critical-fg hover:bg-status-critical/10 active:scale-[0.98] transition-all"
-              >
-                <Trash2 className="h-4 w-4 shrink-0" />
-                <span>Restablecer Servidor</span>
-              </button>
-            )}
-          </div>
-        </form>
-
-        {/* Mini tutorial interactivo */}
+        {/* Mini tutorial interactivo — siempre visible, aplica a ambos modos */}
         <ApiKeyGuide />
       </div>
     </main>
