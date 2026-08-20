@@ -448,7 +448,12 @@ export default function CapturePage() {
       <main className="flex flex-1 flex-col items-stretch justify-start gap-4">
         {/* Vista de análisis en curso */}
         {(isAnalyzing || isRunningAnalysis) && (
-          <AnalysisLoadingScreen />
+          <AnalysisLoadingScreen
+            onTimeout={() => {
+              setIsRunningAnalysis(false);
+              setCaptureError('El análisis excedió el tiempo máximo. Usa "Reintentar" o verifica tu conexión.');
+            }}
+          />
         )}
 
         {/* Vista de éxito: reporte sincronizado o resultado de emergencia */}

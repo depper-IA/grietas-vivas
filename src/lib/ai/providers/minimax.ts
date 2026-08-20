@@ -84,6 +84,15 @@ export class MinimaxProvider implements IAIProvider {
         if (status === 401 || status === 403) {
           throw new Error(`Minimax authentication failed (${status})`);
         }
+        if (status === 402) {
+          // 402 = Payment Required. For Token Plan keys (sk-cp-*): no seat/credits assigned
+          // or quota window exhausted. For pay-as-you-go keys (sk-api-*): insufficient balance.
+          const isSubscriptionKey = this.apiKey.startsWith('sk-cp-');
+          const detail = isSubscriptionKey
+            ? 'Tu Token Plan no tiene cuota disponible (ventana agotada o sin seat asignado). Espera la siguiente ventana de 5 horas o usa una clave pay-as-you-go (sk-api-...).'
+            : 'Saldo insuficiente en tu cuenta MiniMax. Recarga en platform.minimax.io o usa otro proveedor.';
+          throw new Error(`Minimax payment required (402): ${detail}`);
+        }
         throw new Error(`Minimax request failed with status ${status}`);
       }
 

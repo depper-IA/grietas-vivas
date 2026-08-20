@@ -57,7 +57,15 @@ const ANALYSIS_STEPS: AnalysisStep[] = [
 /** Time between step transitions in ms */
 const STEP_INTERVAL = 3000;
 
-export function AnalysisLoadingScreen() {
+/** Maximum time before forcing a timeout callback (45s) */
+const MAX_ANALYSIS_TIME_MS = 45_000;
+
+interface AnalysisLoadingScreenProps {
+  /** Called when analysis exceeds the maximum expected time */
+  onTimeout?: () => void;
+}
+
+export function AnalysisLoadingScreen({ onTimeout }: AnalysisLoadingScreenProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
 
@@ -81,6 +89,13 @@ export function AnalysisLoadingScreen() {
     }, 200);
     return () => clearInterval(interval);
   }, []);
+
+  // Safety timeout — if analysis takes too long, notify parent
+  useEffect(() => {
+    if (!onTimeout) return;
+    const timer = setTimeout(onTimeout, MAX_ANALYSIS_TIME_MS);
+    return () => clearTimeout(timer);
+  }, [onTimeout]);
 
   const step = ANALYSIS_STEPS[currentStep];
   const StepIcon = step.icon;
