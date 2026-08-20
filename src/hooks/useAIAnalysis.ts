@@ -30,6 +30,8 @@ export interface UseAIAnalysisReturn {
   result: AnalysisResult | null;
   /** Error from the last failed analysis attempt */
   error: Error | null;
+  /** Whether the weekly fallback limit has been reached */
+  limitReached: boolean;
   /** Manually trigger a retry of the last failed analysis */
   retry: () => Promise<AnalysisResult | null>;
 }
@@ -47,12 +49,14 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
   const [analysisState, setAnalysisState] = useState<AnalysisState>('idle');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
 
   // Track pending retry state
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectivityUnsubRef = useRef<(() => void) | null>(null);
   const lastRequestRef = useRef<{ image: Blob; config: AIConfig } | null>(null);
   const mountedRef = useRef(true);
+  const limitReachedRef = useRef(false);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -86,6 +90,7 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
 
         setResult(analysisResult);
         setError(null);
+        setLimitReached(false);
         setAnalysisState('done');
         clearRetrySchedule();
         return analysisResult;
@@ -94,6 +99,11 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
 
         const analysisError =
           err instanceof Error ? err : new Error('Analysis failed');
+
+        const isLimitReached = analysisError.message.includes('FALLBACK_LIMIT_REACHED');
+        setLimitReached(isLimitReached);
+        limitReachedRef.current = isLimitReached;
+
         setError(analysisError);
         return null;
       }
@@ -145,20 +155,24 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
   /** Primary analyze function exposed to consumers. */
   const analyze = useCallback(
     async (image: Blob, config: AIConfig): Promise<AnalysisResult | null> => {
-      // Store the request for manual retry
       lastRequestRef.current = { image, config };
 
       setAnalysisState('analyzing');
       setError(null);
       setResult(null);
+      setLimitReached(false);
+      limitReachedRef.current = false;
       clearRetrySchedule();
 
       const analysisResult = await executeAnalysis(image, config);
 
-      // If failed, schedule automatic retry
       if (!analysisResult && mountedRef.current) {
-        setAnalysisState('error');
-        scheduleRetry(image, config);
+        if (limitReachedRef.current) {
+          setAnalysisState('error');
+        } else {
+          setAnalysisState('error');
+          scheduleRetry(image, config);
+        }
       }
 
       return analysisResult;
@@ -180,6 +194,7 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
     analysisState,
     result,
     error,
+    limitReached,
     retry,
   };
 }

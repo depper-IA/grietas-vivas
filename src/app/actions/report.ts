@@ -671,3 +671,405 @@ export async function reanalyzeReport(data: {
     };
   }
 }
+
+/**
+ * Calculate geohash of 3 decimal places (~111m precision) for grouping.
+ */
+function toGeohash(lat: number | null, lng: number | null): string | null {
+  if (lat === null || lng === null) return null;
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
+
+/**
+ * Get worst risk level from a list of reports.
+ */
+function getWorstRisk(
+  reports: Array<{ risk_level: string | null }>,
+): 'critical' | 'high' | 'medium' | 'low' {
+  const riskOrder = ['critical', 'high', 'medium', 'low'] as const;
+  let worst: (typeof riskOrder)[number] = 'low';
+  for (const report of reports) {
+    const risk = (report.risk_level ?? 'low') as (typeof riskOrder)[number];
+    const idx = riskOrder.indexOf(risk);
+    const worstIdx = riskOrder.indexOf(worst);
+    if (idx < worstIdx) {
+      worst = risk;
+    }
+  }
+  return worst;
+}
+
+/**
+ * Result of cluster report generation.
+ */
+export interface ClusterReportOutput {
+  clusterId: string;
+  pdfStoragePath: string;
+  integrityHash: string;
+  downloadUrl: string;
+  generatedAt: string;
+  reportCount: number;
+  worstRisk: string;
+  trend: 'worsening' | 'improving' | 'stable';
+}
+
+/**
+ * Result of successful cluster report generation.
+ */
+export interface GenerateClusterReportSuccess {
+  success: true;
+  report: ClusterReportOutput;
+}
+
+/**
+ * Result of failed cluster report generation.
+ */
+export interface GenerateClusterReportError {
+  success: false;
+  error: SafeErrorResponse['error'];
+}
+
+export type GenerateClusterReportResult =
+  | GenerateClusterReportSuccess
+  | GenerateClusterReportError;
+
+/**
+ * Server Action: Generate a consolidated PDF report for all reports
+ * in a cluster (grouped by location ~111m precision).
+ *
+ * 1. Validates the authenticated user session
+ * 2. Fetches all reports for the user and groups them by geohash
+ * 3. For the specified cluster, calculates worst risk and trend
+ * 4. Generates a consolidated PDF with all photos
+ * 5. Computes SHA-256 integrity hash of the PDF
+ * 6. Returns the download URL
+ */
+export async function generateClusterReport(data: {
+  clusterId: string;
+}): Promise<GenerateClusterReportResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Autenticación requerida. Por favor inicia sesión e intenta de nuevo.',
+        },
+      };
+    }
+
+    const { clusterId } = data;
+    if (!clusterId || typeof clusterId !== 'string') {
+      return {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Se requiere un identificador de cluster valido.',
+        },
+      };
+    }
+
+    const { data: reports, error: fetchError } = await supabase
+      .from('reports')
+      .select('id, gps_latitude, gps_longitude, risk_level, created_at, image_storage_path')
+      .eq('user_id', user.id)
+      .not('gps_latitude', 'is', null)
+      .not('gps_longitude', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      return {
+        success: false,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'No fue posible obtener los reportes del hogar.',
+        },
+      };
+    }
+
+    const groups = new Map<string, typeof reports>();
+    for (const report of reports ?? []) {
+      const geohash = toGeohash(report.gps_latitude, report.gps_longitude);
+      if (!geohash) continue;
+
+      const existing = groups.get(geohash);
+      if (existing) {
+        existing.push(report);
+      } else {
+        groups.set(geohash, [report]);
+      }
+    }
+
+    const clusterReports = groups.get(clusterId);
+    if (!clusterReports || clusterReports.length === 0) {
+      return {
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Hogar no encontrado o sin reportes con ubicacion.',
+        },
+      };
+    }
+
+    const worstRisk = getWorstRisk(clusterReports);
+
+    const sorted = [...clusterReports].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    const recent = sorted.slice(0, 2);
+    const previous = sorted.slice(2, 4);
+
+    const riskOrder = ['critical', 'high', 'medium', 'low'] as const;
+    let trend: 'worsening' | 'improving' | 'stable' = 'stable';
+
+    if (recent.length > 0 && previous.length > 0) {
+      const avgRecent =
+        recent.reduce((sum, r) => {
+          const risk = (r.risk_level ?? 'low') as (typeof riskOrder)[number];
+          return sum + riskOrder.indexOf(risk);
+        }, 0) / recent.length;
+      const avgPrevious =
+        previous.reduce((sum, r) => {
+          const risk = (r.risk_level ?? 'low') as (typeof riskOrder)[number];
+          return sum + riskOrder.indexOf(risk);
+        }, 0) / previous.length;
+
+      if (avgRecent < avgPrevious) trend = 'worsening';
+      else if (avgRecent > avgPrevious) trend = 'improving';
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return {
+        success: false,
+        error: {
+          code: 'CONFIGURATION_ERROR',
+          message: 'El servicio no esta disponible temporalmente.',
+        },
+      };
+    }
+
+    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/generate-cluster-report`;
+
+    const imagePaths = clusterReports
+      .map((r) => r.image_storage_path)
+      .filter((p): p is string => Boolean(p));
+
+    const reportInput = {
+      clusterId,
+      userId: user.id,
+      reportCount: clusterReports.length,
+      worstRisk,
+      trend,
+      imagePaths,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+      },
+    };
+
+    const response = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify(reportInput),
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: {
+          code: 'REPORT_GENERATION_FAILED',
+          message: 'No se pudo generar el reporte consolidado.',
+        },
+      };
+    }
+
+    const result: {
+      pdfStoragePath: string;
+      integrityHash: string;
+      downloadUrl: string;
+      generatedAt: string;
+    } = await response.json();
+
+    return {
+      success: true,
+      report: {
+        clusterId,
+        pdfStoragePath: result.pdfStoragePath,
+        integrityHash: result.integrityHash,
+        downloadUrl: result.downloadUrl,
+        generatedAt: result.generatedAt,
+        reportCount: clusterReports.length,
+        worstRisk,
+        trend,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return {
+        success: false,
+        error: {
+          code: 'TIMEOUT',
+          message: 'La generacion del reporte excedio el tiempo limite.',
+        },
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Ocurrio un error inesperado.',
+      },
+    };
+  }
+}
+
+/**
+ * Result of getting user clusters.
+ */
+export interface GetUserClustersSuccess {
+  success: true;
+  clusters: Array<{
+    clusterId: string;
+    reportCount: number;
+    worstRisk: 'critical' | 'high' | 'medium' | 'low';
+    trend: 'worsening' | 'improving' | 'stable';
+    latestDate: string;
+    latestReportId: string;
+  }>;
+}
+
+/**
+ * Result of failed cluster fetch.
+ */
+export interface GetUserClustersError {
+  success: false;
+  error: SafeErrorResponse['error'];
+}
+
+export type GetUserClustersResult = GetUserClustersSuccess | GetUserClustersError;
+
+/**
+ * Server Action: Get all clusters (grouped by location) for the current user.
+ */
+export async function getUserClusters(): Promise<GetUserClustersResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Autenticación requerida.',
+        },
+      };
+    }
+
+    const { data: reports, error: fetchError } = await supabase
+      .from('reports')
+      .select('id, gps_latitude, gps_longitude, risk_level, created_at')
+      .eq('user_id', user.id)
+      .not('gps_latitude', 'is', null)
+      .not('gps_longitude', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      return {
+        success: false,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'No fue posible obtener los reportes.',
+        },
+      };
+    }
+
+    const groups = new Map<
+      string,
+      Array<{
+        id: string;
+        gps_latitude: number | null;
+        gps_longitude: number | null;
+        risk_level: string | null;
+        created_at: string;
+      }>
+    >();
+
+    for (const report of reports ?? []) {
+      const geohash = toGeohash(report.gps_latitude, report.gps_longitude);
+      if (!geohash) continue;
+
+      const existing = groups.get(geohash);
+      if (existing) {
+        existing.push(report);
+      } else {
+        groups.set(geohash, [report]);
+      }
+    }
+
+    const clusters = Array.from(groups.entries()).map(([clusterId, clusterReports]) => {
+      const worstRisk = getWorstRisk(clusterReports);
+
+      const sorted = [...clusterReports].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+      const recent = sorted.slice(0, 2);
+      const previous = sorted.slice(2, 4);
+
+      const riskOrder = ['critical', 'high', 'medium', 'low'] as const;
+      let trend: 'worsening' | 'improving' | 'stable' = 'stable';
+
+      if (recent.length > 0 && previous.length > 0) {
+        const avgRecent =
+          recent.reduce((sum, r) => {
+            const risk = (r.risk_level ?? 'low') as (typeof riskOrder)[number];
+            return sum + riskOrder.indexOf(risk);
+          }, 0) / recent.length;
+        const avgPrevious =
+          previous.reduce((sum, r) => {
+            const risk = (r.risk_level ?? 'low') as (typeof riskOrder)[number];
+            return sum + riskOrder.indexOf(risk);
+          }, 0) / previous.length;
+
+        if (avgRecent < avgPrevious) trend = 'worsening';
+        else if (avgRecent > avgPrevious) trend = 'improving';
+      }
+
+      return {
+        clusterId,
+        reportCount: clusterReports.length,
+        worstRisk,
+        trend,
+        latestDate: sorted[0]?.created_at ?? '',
+        latestReportId: sorted[0]?.id ?? '',
+      };
+    });
+
+    return { success: true, clusters };
+  } catch {
+    return {
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Ocurrio un error al obtener los hogares.',
+      },
+    };
+  }
+}

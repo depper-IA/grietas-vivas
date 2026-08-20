@@ -23,6 +23,19 @@ const { mockAnalyze, mockRegisterProvider, mockGetUser } = vi.hoisted(() => ({
 vi.mock('@/lib/db/supabase', () => ({
   createServerSupabaseClient: vi.fn().mockResolvedValue({
     auth: { getUser: mockGetUser },
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { fallback_attempts_used: 0, fallback_attempts_reset_at: new Date().toISOString() },
+            error: null,
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    }),
   }),
 }));
 

@@ -21,14 +21,16 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { FileImage, RefreshCw, Trash2, X } from 'lucide-react';
+import { FileImage, RefreshCw, Trash2, X, TrendingUp, LayoutGrid } from 'lucide-react';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
 import { getAllCaptures, deleteCapture } from '@/lib/db/localDb';
-import { deleteReport } from '@/app/actions/report';
+import { deleteReport, getUserClusters, type GetUserClustersSuccess } from '@/app/actions/report';
 import { ReportCard, type ReportCardData } from '@/components/reports/ReportCard';
+import { ClusterCard } from '@/components/reports/ClusterCard';
 import type { RiskLevel } from '@/lib/ai/types';
 
 type LoadingState = 'loading' | 'loaded' | 'error';
+type ActiveTab = 'reports' | 'progression';
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<ReportCardData[]>([]);
@@ -38,6 +40,9 @@ export default function ReportsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('reports');
+  const [clusters, setClusters] = useState<GetUserClustersSuccess['clusters']>([]);
+  const [clustersLoading, setClustersLoading] = useState(false);
 
   const handleDeleteClick = (id: string) => {
     setDeletingId(id);
@@ -49,19 +54,17 @@ export default function ReportsPage() {
     setIsDeleting(true);
     setDeleteError('');
     try {
-      // 1. Eliminar siempre de IndexedDB local
       try {
         await deleteCapture(deletingId);
       } catch {
         // Continuar
       }
 
-      // 2. Si hay red y es un reporte sincronizado, eliminar de Supabase
       if (navigator.onLine && !deletingId.startsWith('local-')) {
         try {
           await deleteReport({ reportId: deletingId });
         } catch {
-          // Error en la nube no bloquea la eliminación visual local
+          // Error en la nube no bloquea la eliminacion visual local
         }
       }
 
@@ -78,7 +81,6 @@ export default function ReportsPage() {
     setLoadingState('loading');
     setErrorMessage('');
 
-    // Check connectivity
     const online = navigator.onLine;
     setIsOffline(!online);
 
@@ -94,7 +96,6 @@ export default function ReportsPage() {
           throw new Error(error.message);
         }
 
-        // Obtener URLs firmadas para las miniaturas desde Supabase Storage
         const paths = (data ?? [])
           .map((row) => row.image_storage_path)
           .filter((p): p is string => Boolean(p));
@@ -114,7 +115,7 @@ export default function ReportsPage() {
               }
             }
           } catch {
-            // Degradación graceful si falla createSignedUrls
+            // Degradacion graceful si falla createSignedUrls
           }
         }
 
@@ -131,11 +132,9 @@ export default function ReportsPage() {
         setReports(remoteReports);
         setLoadingState('loaded');
       } catch {
-        // If fetch fails, fall back to local cache
         await loadCachedReports();
       }
     } else {
-      // Offline: load from IndexedDB
       await loadCachedReports();
     }
   }, []);
@@ -175,11 +174,28 @@ export default function ReportsPage() {
     }
   };
 
-  useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
+  const fetchClusters = useCallback(async () => {
+    setClustersLoading(true);
+    try {
+      const result = await getUserClusters();
+      if (result.success) {
+        setClusters(result.clusters);
+      }
+    } catch {
+      // Ignore errors for clusters
+    } finally {
+      setClustersLoading(false);
+    }
+  }, []);
 
-  // Listen to connectivity changes
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      fetchReports();
+    } else if (activeTab === 'progression') {
+      fetchClusters();
+    }
+  }, [activeTab, fetchReports, fetchClusters]);
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
@@ -203,77 +219,168 @@ export default function ReportsPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-text-primary">Reportes</h1>
         <p className="mt-1 text-sm text-text-muted">
-          Tus reportes de análisis de grietas
+          Tus reportes de analisis de grietas
         </p>
         {isOffline && (
           <div
             className="mt-3 rounded-xl border border-brand-accent/30 bg-surface-2 p-3 text-sm text-text-secondary shadow-sm"
             role="alert"
           >
-            Sin conexión. Mostrando reportes almacenados localmente.
+            Sin conexion. Mostrando reportes almacenados localmente.
           </div>
         )}
       </header>
 
-      {loadingState === 'loading' && (
-        <div
-          className="flex items-center justify-center py-16"
-          aria-live="polite"
+      {/* Tab selector */}
+      <div className="flex rounded-xl bg-surface-1 p-1.5 border border-border-default shadow-sm mb-6">
+        <button
+          type="button"
+          onClick={() => setActiveTab('reports')}
+          className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center justify-center gap-2 ${
+            activeTab === 'reports'
+              ? 'bg-brand-accent text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
         >
-          <RefreshCw
-            className="h-8 w-8 animate-spin text-brand-accent"
-            role="status"
-            aria-label="Cargando reportes..."
-          />
-        </div>
-      )}
-
-      {loadingState === 'error' && (
-        <div
-          className="rounded-2xl border border-status-critical-border bg-surface-2 p-5 text-center shadow-md"
-          role="alert"
+          <FileImage className="h-4 w-4" aria-hidden="true" />
+          <span>Reportes</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('progression')}
+          className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-150 flex items-center justify-center gap-2 ${
+            activeTab === 'progression'
+              ? 'bg-brand-accent text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
         >
-          <p className="text-sm font-medium text-status-critical-border">{errorMessage}</p>
-          <button
-            onClick={fetchReports}
-            className="mt-4 min-h-[44px] rounded-xl border border-status-critical-border bg-status-critical px-5 py-2.5 text-sm font-semibold text-status-critical-fg transition-opacity duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-status-critical-border"
-          >
-            Reintentar
-          </button>
-        </div>
+          <TrendingUp className="h-4 w-4" aria-hidden="true" />
+          <span>Mi Progresion</span>
+        </button>
+      </div>
+
+      {/* Reports Tab */}
+      {activeTab === 'reports' && (
+        <>
+          {loadingState === 'loading' && (
+            <div
+              className="flex items-center justify-center py-16"
+              aria-live="polite"
+            >
+              <RefreshCw
+                className="h-8 w-8 animate-spin text-brand-accent"
+                role="status"
+                aria-label="Cargando reportes..."
+              />
+            </div>
+          )}
+
+          {loadingState === 'error' && (
+            <div
+              className="rounded-2xl border border-status-critical-border bg-surface-2 p-5 text-center shadow-md"
+              role="alert"
+            >
+              <p className="text-sm font-medium text-status-critical-border">{errorMessage}</p>
+              <button
+                onClick={fetchReports}
+                className="mt-4 min-h-[44px] rounded-xl border border-status-critical-border bg-status-critical px-5 py-2.5 text-sm font-semibold text-status-critical-fg transition-opacity duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-status-critical-border"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          {loadingState === 'loaded' && reports.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 border border-border-default shadow-sm mb-4">
+                <FileImage
+                  className="h-8 w-8 text-text-muted opacity-80"
+                  aria-hidden="true"
+                />
+              </div>
+              <h2 className="text-lg font-bold text-text-primary">
+                Sin reportes aun
+              </h2>
+              <p className="mt-1.5 text-sm text-text-muted max-w-xs mx-auto">
+                Captura una foto de una grieta para generar tu primer analisis estructural.
+              </p>
+            </div>
+          )}
+
+          {loadingState === 'loaded' && reports.length > 0 && (
+            <ul className="space-y-3.5" aria-label="Lista de reportes">
+              {reports.map((report) => (
+                <ReportCard key={report.id} report={report} onDelete={handleDeleteClick} />
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
-      {loadingState === 'loaded' && reports.length === 0 && (
-        <div className="py-16 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 border border-border-default shadow-sm mb-4">
-            <FileImage
-              className="h-8 w-8 text-text-muted opacity-80"
-              aria-hidden="true"
-            />
-          </div>
-          <h2 className="text-lg font-bold text-text-primary">
-            Sin reportes aún
-          </h2>
-          <p className="mt-1.5 text-sm text-text-muted max-w-xs mx-auto">
-            Captura una foto de una grieta para generar tu primer análisis estructural.
-          </p>
-        </div>
+      {/* Progression Tab */}
+      {activeTab === 'progression' && (
+        <>
+          {clustersLoading && (
+            <div
+              className="flex items-center justify-center py-16"
+              aria-live="polite"
+            >
+              <RefreshCw
+                className="h-8 w-8 animate-spin text-brand-accent"
+                role="status"
+                aria-label="Cargando progression..."
+              />
+            </div>
+          )}
+
+          {!clustersLoading && clusters.length === 0 && (
+            <div className="py-16 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 border border-border-default shadow-sm mb-4">
+                <LayoutGrid
+                  className="h-8 w-8 text-text-muted opacity-80"
+                  aria-hidden="true"
+                />
+              </div>
+              <h2 className="text-lg font-bold text-text-primary">
+                Sin hogares registrados
+              </h2>
+              <p className="mt-1.5 text-sm text-text-muted max-w-xs mx-auto">
+                Los hogares se crean automaticamente cuando agregas analisis con ubicacion GPS.
+              </p>
+            </div>
+          )}
+
+          {!clustersLoading && clusters.length > 0 && (
+            <div className="space-y-4">
+              <p className="text-xs text-text-muted">
+                Tus hogares agrupados por ubicacion ({clusters.length} hogar{clusters.length !== 1 ? 'es' : ''})
+              </p>
+              <div className="space-y-4">
+                {clusters.map((cluster) => (
+                  <ClusterCard
+                    key={cluster.clusterId}
+                    clusterId={cluster.clusterId}
+                    entries={[
+                      {
+                        id: cluster.latestReportId,
+                        date: cluster.latestDate,
+                        riskLevel: cluster.worstRisk,
+                      },
+                    ]}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {loadingState === 'loaded' && reports.length > 0 && (
-        <ul className="space-y-3.5" aria-label="Lista de reportes">
-          {reports.map((report) => (
-            <ReportCard key={report.id} report={report} onDelete={handleDeleteClick} />
-          ))}
-        </ul>
-      )}
-
-      {/* Modal de confirmación de eliminación */}
+      {/* Modal de confirmacion de eliminacion */}
       {deletingId && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Confirmar eliminación"
+          aria-label="Confirmar eliminacion"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
         >
           <div className="w-full max-w-sm rounded-2xl border border-status-critical-border bg-surface-1 p-5 shadow-2xl space-y-4">
@@ -293,10 +400,10 @@ export default function ReportsPage() {
 
             <div>
               <h3 className="text-base font-bold text-text-primary tracking-tight">
-                ¿Eliminar reporte?
+                Eliminar reporte?
               </h3>
               <p className="mt-1.5 text-xs text-text-secondary leading-relaxed">
-                Esta acción eliminará permanentemente los datos y las fotografías asociadas. No se puede deshacer.
+                Esta accion eliminara permanentemente los datos y las fotografias asociadas. No se puede deshacer.
               </p>
             </div>
 

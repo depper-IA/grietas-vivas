@@ -34,6 +34,9 @@ import { checkRateLimit, SafeError } from '@/lib/security/rateLimit';
  */
 const MAX_BASE64_SIZE = Math.ceil(10 * 1024 * 1024 * 1.37);
 
+/** Maximum free fallback analyses per UTC week. */
+const FALLBACK_LIMIT_PER_WEEK = 5;
+
 /** Input validation schema for the fallback analysis action. */
 const fallbackAnalysisInputSchema = z.object({
   imageBase64: z
@@ -45,7 +48,87 @@ const fallbackAnalysisInputSchema = z.object({
     .max(MAX_BASE64_SIZE, 'Context image exceeds maximum allowed size')
     .optional(),
   structuralContext: structuralContextSchema.optional(),
+  hasByokConfigured: z.boolean().optional().default(false),
 });
+
+/**
+ * Returns the start of the current UTC week (Sunday 00:00:00 UTC).
+ */
+function getStartOfCurrentUtcWeek(): Date {
+  const now = new Date();
+  const utc = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    0,
+    0,
+    0,
+    0,
+  ));
+  const dayOfWeek = utc.getUTCDay();
+  utc.setUTCDate(utc.getUTCDate() - dayOfWeek);
+  return utc;
+}
+
+/**
+ * Checks and enforces the weekly fallback attempt limit for a user.
+ *
+ * Logic:
+ * - If user has BYOK configured, skip the limit check entirely
+ * - Get current fallback_attempts_used and fallback_attempts_reset_at from DB
+ * - If reset_at is before the start of the current UTC week, reset counter to 0
+ * - If used >= 5, throw SafeError with FALLBACK_LIMIT_REACHED
+ * - Otherwise, increment used and proceed
+ */
+async function checkFallbackLimit(userId: string, hasByokConfigured: boolean): Promise<void> {
+  if (hasByokConfigured) {
+    return;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const startOfWeek = getStartOfCurrentUtcWeek();
+
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('fallback_attempts_used, fallback_attempts_reset_at')
+    .eq('id', userId)
+    .single();
+
+  if (fetchError || !user) {
+    throw new SafeError(
+      'INTERNAL_ERROR',
+      'No fue posible verificar el limite de analisis. Por favor intenta de nuevo.',
+    );
+  }
+
+  const resetAt = new Date(user.fallback_attempts_reset_at ?? 0);
+  const used = user.fallback_attempts_used ?? 0;
+
+  if (resetAt < startOfWeek) {
+    await supabase
+      .from('users')
+      .update({
+        fallback_attempts_used: 1,
+        fallback_attempts_reset_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    return;
+  }
+
+  if (used >= FALLBACK_LIMIT_PER_WEEK) {
+    throw new SafeError(
+      'FALLBACK_LIMIT_REACHED',
+      'Has alcanzado el limite de 5 analisis gratuitos esta semana. Configura tu propia clave API en Settings para continuar.',
+    );
+  }
+
+  await supabase
+    .from('users')
+    .update({
+      fallback_attempts_used: used + 1,
+    })
+    .eq('id', userId);
+}
 
 /** Return type: either a successful analysis or a structured error. */
 export type AnalyzeWithFallbackResult =
@@ -68,11 +151,8 @@ export async function analyzeWithFallback(input: {
   imageBase64: string;
   contextImageBase64?: string;
   structuralContext?: unknown;
+  hasByokConfigured?: boolean;
 }): Promise<AnalyzeWithFallbackResult> {
-  // Authenticate FIRST. Server Actions are public HTTP endpoints reachable by
-  // action id from any route, so the middleware is not an authorization
-  // boundary for them — without this check an anonymous caller could spend the
-  // server-managed provider keys as a free inference proxy.
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -91,22 +171,6 @@ export async function analyzeWithFallback(input: {
     };
   }
 
-  // Rate limit BEFORE doing any provider work — protects server-managed
-  // fallback keys from abuse. 10 requests/min keeps the average user fluid
-  // while preventing a runaway client from spending shared quota.
-  try {
-    await checkRateLimit(user.id, 'analysis', 10);
-  } catch (error) {
-    if (error instanceof SafeError) {
-      // analysis.ts uses the full SafeErrorResponse envelope (matches its
-      // existing return shape), while sync.ts / report.ts use the inner
-      // `error` shape. Match the local convention of this file.
-      return { success: false, error: error.safeResponse };
-    }
-    throw error;
-  }
-
-  // Validate input
   const validation = fallbackAnalysisInputSchema.safeParse(input);
   if (!validation.success) {
     const firstIssue = validation.error.issues[0];
@@ -119,6 +183,24 @@ export async function analyzeWithFallback(input: {
         },
       },
     };
+  }
+
+  try {
+    await checkFallbackLimit(user.id, validation.data.hasByokConfigured ?? false);
+  } catch (error) {
+    if (error instanceof SafeError) {
+      return { success: false, error: error.safeResponse };
+    }
+    throw error;
+  }
+
+  try {
+    await checkRateLimit(user.id, 'analysis', 10);
+  } catch (error) {
+    if (error instanceof SafeError) {
+      return { success: false, error: error.safeResponse };
+    }
+    throw error;
   }
 
   // Read fallback API keys from environment (server-side only)
