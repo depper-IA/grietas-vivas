@@ -171,7 +171,13 @@ export function useAIAnalysis(): UseAIAnalysisReturn {
           setAnalysisState('error');
         } else {
           setAnalysisState('error');
-          scheduleRetry(image, config);
+          // Only schedule auto-retry for server fallback mode.
+          // BYOK failures (402, invalid key, etc.) should not auto-retry
+          // because the page.tsx catch block handles the fallback to
+          // emergency offline mode.
+          if (config.mode !== 'byok') {
+            scheduleRetry(image, config);
+          }
         }
       }
 
