@@ -23,14 +23,14 @@ describe('structuralPrompt', () => {
   };
 
   describe('buildStructuralPrompt', () => {
-    it('generates prompt with single image instructions when hasContextImage is false or omitted', () => {
-      const prompt = buildStructuralPrompt(baseContext);
+    it('generates prompt with single image instructions when hasContextImage is false or omitted', async () => {
+      const prompt = await buildStructuralPrompt(baseContext);
 
       expect(prompt).toContain('NSR-10 Colombia / FEMA 306');
       expect(prompt).toContain('Muro de carga / portante');
       expect(prompt).toContain('SÍ (indicador grave de compromiso estructural)');
       expect(prompt).toContain('SÍ (progresión activa)');
-      expect(prompt).toContain('Moneda de 500 pesos colombianos (diámetro exacto: 23.7 mm)');
+      expect(prompt).toContain('REFERENCIA DE ESCALA APROXIMADA: Moneda colombiana');
       expect(prompt).toContain('FOTOGRAFÍA ADJUNTA PARA EL ANÁLISIS');
       expect(prompt).toContain('Patrón:');
       expect(prompt).toContain('Ubicación:');
@@ -38,8 +38,8 @@ describe('structuralPrompt', () => {
       expect(prompt).toContain('Recomendación:');
     });
 
-    it('generates prompt with dual image instructions when hasContextImage is true', () => {
-      const prompt = buildStructuralPrompt(baseContext, true);
+    it('generates prompt with dual image instructions when hasContextImage is true', async () => {
+      const prompt = await buildStructuralPrompt(baseContext, true);
 
       expect(prompt).toContain('FOTOGRAFÍAS ADJUNTAS PARA EL ANÁLISIS MULTIMODAL');
       expect(prompt).toContain('Foto 1 (Detalle de la grieta)');
@@ -47,20 +47,29 @@ describe('structuralPrompt', () => {
       expect(prompt).toContain('vigas, columnas, nudos');
     });
 
-    it('handles different scale reference types correctly', () => {
-      const cardPrompt = buildStructuralPrompt({
+    it('handles different scale reference types correctly', async () => {
+      const coinPrompt = await buildStructuralPrompt({
         ...baseContext,
-        scaleReferenceType: 'card',
+        scaleReferenceType: 'coin',
+        coinDenomination: 500,
       });
-      expect(cardPrompt).toContain('Tarjeta estándar de crédito/documento (85.6 mm × 53.98 mm)');
+      expect(coinPrompt).toContain('Moneda colombiana de $500 (diámetro exacto: 23.7 mm)');
 
-      const handPrompt = buildStructuralPrompt({
+      const unspecifiedCoinPrompt = await buildStructuralPrompt({
+        ...baseContext,
+        scaleReferenceType: 'coin',
+        coinDenomination: undefined,
+      });
+      expect(unspecifiedCoinPrompt).toContain('REFERENCIA DE ESCALA APROXIMADA: Moneda colombiana');
+
+      const handPrompt = await buildStructuralPrompt({
         ...baseContext,
         scaleReferenceType: 'hand',
       });
-      expect(handPrompt).toContain('Mano humana (ancho de palma promedio ≈ 8.0 cm)');
+      expect(handPrompt).toContain('REFERENCIA DE ESCALA APROXIMADA: Mano humana');
+      expect(handPrompt).toContain('rango real ≈ 7-12 cm');
 
-      const noScalePrompt = buildStructuralPrompt({
+      const noScalePrompt = await buildStructuralPrompt({
         ...baseContext,
         hasScaleReference: false,
       });

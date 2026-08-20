@@ -286,7 +286,7 @@ export interface StructuralContextInput {
     | 'other';
   crossesFullSpan: boolean;
   hasScaleReference: boolean;
-  scaleReferenceType?: 'coin' | 'card' | 'ruler' | 'hand' | 'none';
+  scaleReferenceType?: 'coin' | 'ruler' | 'hand' | 'none';
   estimatedDistance?: number;
   recentGrowth: boolean;
   buildingFloors?: number;

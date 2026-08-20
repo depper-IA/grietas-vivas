@@ -1,16 +1,21 @@
 /**
- * Structural Engineering Prompt — Advanced crack analysis
+ * Structural Engineering Prompt — Advanced crack analysis with RAG.
  *
  * Uses domain-specific prompt engineering to extract detailed structural
  * information from multimodal AI models. Asks for crack classification,
  * estimated dimensions, pattern type, and severity assessment based on
  * NSR-10 (Colombia) and FEMA 306 standards.
  *
+ * RAG (Retrieval-Augmented Generation): When expert-validated calibrations
+ * are available in the bank, the top-k most similar past cases are retrieved
+ * and injected as Few-Shot examples to anchor the model's confidence.
+ *
  * Combined with user-provided structural context (element type, load-bearing
  * status, crack traversal) to produce a weighted risk assessment.
  */
 
 import { z } from 'zod';
+import { findSimilarCalibrations, buildRagSection } from './rag';
 
 /** User-provided structural context from the pre-analysis questionnaire. */
 export interface StructuralContext {
@@ -20,8 +25,12 @@ export interface StructuralContext {
   crossesFullSpan: boolean;
   /** Is there a reference object in the photo for scale? */
   hasScaleReference: boolean;
-  /** Type of reference object (if any) */
-  scaleReferenceType?: 'coin' | 'card' | 'ruler' | 'hand' | 'none';
+  /** Type of reference object (if any). 'card' was removed: real ID/bank cards
+   * carry PII/payment data and would be transmitted to third-party AI providers
+   * and persisted in storage — see structuralPrompt.test.ts for the rationale. */
+  scaleReferenceType?: 'coin' | 'ruler' | 'hand' | 'none';
+  /** Denomination of the Colombian coin used as scale reference, when applicable. */
+  coinDenomination?: 100 | 200 | 500 | 1000;
   /** Approximate distance from camera to crack in meters */
   estimatedDistance?: number;
   /** Has the crack changed recently? (post-earthquake growth) */
@@ -45,7 +54,8 @@ export const structuralContextSchema = z.object({
   ]),
   crossesFullSpan: z.boolean(),
   hasScaleReference: z.boolean(),
-  scaleReferenceType: z.enum(['coin', 'card', 'ruler', 'hand', 'none']).optional(),
+  scaleReferenceType: z.enum(['coin', 'ruler', 'hand', 'none']).optional(),
+  coinDenomination: z.union([z.literal(100), z.literal(200), z.literal(500), z.literal(1000)]).optional(),
   estimatedDistance: z.number().positive().optional(),
   recentGrowth: z.boolean(),
   buildingFloors: z.number().int().positive().optional(),
@@ -56,11 +66,29 @@ export const structuralContextSchema = z.object({
  * Build the specialized structural analysis prompt.
  * Includes the user's structural context to help the AI make a better assessment.
  * Supports multi-image analysis (detail photo + structural context photo).
+ *
+ * If `reportTextForRag` is provided, queries the calibration bank and
+ * top-k similar patterns are injected as Few-Shot examples.
  */
-export function buildStructuralPrompt(context: StructuralContext, hasContextImage?: boolean): string {
+export async function buildStructuralPrompt(
+  context: StructuralContext,
+  hasContextImage?: boolean,
+  reportTextForRag?: string,
+): Promise<string> {
   const contextSection = buildContextSection(context);
   const scaleSection = buildScaleSection(context);
   const imageGuidanceSection = buildImageGuidanceSection(hasContextImage);
+
+  // RAG: pull semantic examples from the calibration bank (best-effort)
+  let ragSection = '';
+  if (reportTextForRag && reportTextForRag.trim().length > 0) {
+    try {
+      const examples = await findSimilarCalibrations({ text: reportTextForRag });
+      ragSection = buildRagSection(examples);
+    } catch {
+      ragSection = '';
+    }
+  }
 
   return `Eres un perito e ingeniero especialista en evaluación forense de daños y triaje estructural post-sismo (NSR-10 Colombia / FEMA 306).
 
@@ -68,7 +96,7 @@ CONTEXTO ESTRUCTURAL SUMINISTRADO POR EL USUARIO:
 ${contextSection}
 ${scaleSection}
 
-${imageGuidanceSection}
+${ragSection ? ragSection + '\n\n' : ''}${imageGuidanceSection}
 
 MATRIZ OFICIAL DE DAÑOS Y SEVERIDAD SÍSMICA (NSR-10 / FEMA 306):
 1. CRÍTICO (riskLevel: "critical"):
@@ -93,11 +121,11 @@ MATRIZ OFICIAL DE DAÑOS Y SEVERIDAD SÍSMICA (NSR-10 / FEMA 306):
 REGLAS DE EVALUACIÓN Y SALIDA:
 - Todo el reporte debe estar 100% en español profesional.
 - Sé directo, contundente y técnicamente certero. Si observas una grieta en "X", nómbrala explícitamente como "Grietas en X por cortante sísmico" y califícala como "critical".
-- Redacta el campo "description" estructurado exactamente en estas 4 líneas:
-  Patrón: [Tipo exacto de grieta según la matriz: ej. Grietas en X / Diagonal a 45° / Escalonada / Capilar]
-  Ubicación: [Elemento afectado: muro de carga, columna, viga, nudo, tabique divisorio, etc.]
-  Severidad: [Nivel de riesgo técnico y justificación física del daño observado según NSR-10 / FEMA 306]
-  Recomendación: [Indicación clara: ej. EVACUAR INMEDIATAMENTE / NO HABITAR y solicitar peritaje urgente / Monitorear / Habitable]
+- Redacta el campo "description" estrictamente en 4 secciones DIFERENCIADAS Y SIN DUPLICAR información:
+  Patrón: [Exclusivamente la geometría, orientación y morfología de la grieta. Ej: Grieta diagonal a ≈45° con apertura de 3mm y desplazamiento. NO menciones el elemento aquí.]
+  Ubicación: [Exclusivamente el elemento físico afectado, en 1 sola línea breve. Ej: Muro divisorio de mampostería en ladrillo tolete bajo losa. NO repitas la descripción de la grieta aquí.]
+  Severidad: [Mecanismo físico del daño y nivel de riesgo según NSR-10 / FEMA 306. Ej: Compromiso de estabilidad con riesgo de volteo fuera del plano.]
+  Recomendación: [Acción de seguridad inmediata. Ej: Evacuar el área inmediata, apuntalar el vano y solicitar peritaje técnico.]
 - "confidence": número entre 0.0 y 1.0 según la claridad visual de las imágenes.
 
 FORMATO DE RESPUESTA (ÚNICAMENTE JSON VÁLIDO):
@@ -159,21 +187,38 @@ function buildContextSection(context: StructuralContext): string {
   return lines.join('\n');
 }
 
+/** Diámetro oficial (mm) por denominación, según especificaciones del Banco de la República. */
+const COIN_DIAMETERS_MM: Record<number, number> = {
+  100: 20.3,
+  200: 22.4,
+  500: 23.7,
+  1000: 26.7,
+};
+
 function buildScaleSection(context: StructuralContext): string {
   if (!context.hasScaleReference) {
     return `REFERENCIA DE ESCALA: Ninguna específica en la foto. Estima dimensiones relativas a texturas constructivas estándar (ladrillo tolete ≈ 6 cm alto, bloque de concreto ≈ 19 cm alto, junta de mortero ≈ 1.5 cm).`;
   }
 
+  const refType = context.scaleReferenceType || 'none';
+
+  if (refType === 'coin') {
+    const diameterMm = context.coinDenomination ? COIN_DIAMETERS_MM[context.coinDenomination] : undefined;
+    if (diameterMm) {
+      return `REFERENCIA DE ESCALA CALIBRADA: Moneda colombiana de $${context.coinDenomination} (diámetro exacto: ${diameterMm} mm) visible en la foto de detalle. Utilízala para calibrar la estimación de apertura (ancho en mm) y longitud (cm).`;
+    }
+    return `REFERENCIA DE ESCALA APROXIMADA: Moneda colombiana visible en la foto de detalle, denominación no especificada por el usuario (diámetro entre ${COIN_DIAMETERS_MM[100]} mm y ${COIN_DIAMETERS_MM[1000]} mm según denominación). Usa el rango con precaución y reduce la confianza ("confidence") de las mediciones derivadas.`;
+  }
+
+  if (refType === 'hand') {
+    return `REFERENCIA DE ESCALA APROXIMADA: Mano humana visible en la foto de detalle. El ancho de palma adulto varía considerablemente entre personas (rango real ≈ 7-12 cm según sexo y contextura, sin un valor fijo confiable). Úsala solo como orden de magnitud y reduce la confianza ("confidence") de las mediciones derivadas; NO trates esta estimación como precisa.`;
+  }
+
   const references: Record<string, string> = {
-    'coin': 'Moneda de 500 pesos colombianos (diámetro exacto: 23.7 mm) visible en la foto de detalle.',
-    'card': 'Tarjeta estándar de crédito/documento (85.6 mm × 53.98 mm) visible en la foto de detalle.',
     'ruler': 'Regla graduada o cinta métrica milimetrada visible en la foto de detalle.',
-    'hand': 'Mano humana (ancho de palma promedio ≈ 8.0 cm) visible para escala aproximada.',
     'none': 'Sin objeto de referencia específico.',
   };
-
-  const refType = context.scaleReferenceType || 'none';
-  return `REFERENCIA DE ESCALA CALIBRADA: ${references[refType]} Utilízala para calibrar la estimación de apertura (ancho en mm) y longitud (cm).`;
+  return `REFERENCIA DE ESCALA CALIBRADA: ${references[refType] ?? references.none} Utilízala para calibrar la estimación de apertura (ancho en mm) y longitud (cm).`;
 }
 
 /**

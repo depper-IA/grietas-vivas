@@ -151,7 +151,7 @@ export class AIServiceAdapter implements IAIServiceAdapter {
     const imageBuffer = Buffer.from(arrayBuffer);
 
     const prompt = options?.structuralContext
-      ? buildStructuralPrompt(options.structuralContext, !!options.contextImage)
+      ? await buildStructuralPrompt(options.structuralContext, !!options.contextImage)
       : CRACK_ANALYSIS_PROMPT;
 
     const payload: AnalysisPayload = {

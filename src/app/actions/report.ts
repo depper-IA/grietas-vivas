@@ -2,6 +2,8 @@
 
 import { createServerSupabaseClient } from '@/lib/db/supabase';
 import type { SafeErrorResponse } from '@/lib/errors/types';
+import { indexCalibration } from '@/lib/ai/rag';
+import type { RiskLevel } from '@/lib/ai/types';
 
 /**
  * Report output returned by the Edge Function.
@@ -397,6 +399,23 @@ export async function calibrateReport(data: {
       };
     }
 
+    // RAG: indexar la calibración para alimentar el banco de ejemplos.
+    // Best-effort: si falla, el reporte sigue considerándose calibrado.
+    try {
+      if (verifiedPattern) {
+        await indexCalibration({
+          reportId,
+          userId: user.id,
+          riskLevel: verifiedRiskLevel as RiskLevel,
+          pattern: verifiedPattern,
+          isAccurate,
+          notes: notes?.trim() || null,
+        });
+      }
+    } catch {
+      // El RAG es best-effort; el reporte guarda la calibración de todos modos.
+    }
+
     return { success: true };
   } catch {
     return {
@@ -404,6 +423,72 @@ export async function calibrateReport(data: {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Ocurrió un error inesperado al calibrar el reporte.',
+      },
+    };
+  }
+}
+
+/**
+ * Server Action: Update analysis result for an existing report (e.g. re-analysis with AI).
+ */
+export async function updateReportAnalysis(data: {
+  reportId: string;
+  analysisResult: {
+    riskLevel: string;
+    description: string;
+    confidence: number;
+    provider?: string;
+  };
+}): Promise<{ success: boolean; error?: SafeErrorResponse['error'] }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Autenticación requerida para actualizar el reporte.',
+        },
+      };
+    }
+
+    const { reportId, analysisResult } = data;
+
+    const { error: updateError } = await supabase
+      .from('reports')
+      .update({
+        risk_level: analysisResult.riskLevel,
+        analysis_text: analysisResult.description,
+        analysis_confidence: analysisResult.confidence,
+        analysis_provider: analysisResult.provider || 'ai',
+        status: 'analyzed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', reportId)
+      .eq('user_id', user.id);
+
+    if (updateError) {
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_FAILED',
+          message: 'No se pudo actualizar el análisis en la base de datos.',
+        },
+      };
+    }
+
+    return { success: true };
+  } catch {
+    return {
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Ocurrió un error al actualizar el reporte.',
       },
     };
   }
