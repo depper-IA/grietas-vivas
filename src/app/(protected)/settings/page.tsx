@@ -17,16 +17,11 @@
 
 import { useEffect, useState } from 'react';
 import { Key } from 'lucide-react';
-import { createBrowserSupabaseClient } from '@/lib/db/supabase';
-import {
-  retrieveEncryptedByokConfig,
-  clearStoredKey,
-  hasStoredKey,
-} from '@/lib/crypto/byokEncryption';
 import type { AIProvider } from '@/lib/ai/types';
 import { FallbackStatusSection } from '@/components/settings/FallbackStatusSection';
 import { ByokConfigForm } from '@/components/settings/ByokConfigForm';
 import { ApiKeyGuide } from '@/components/settings/ApiKeyGuide';
+import { loadByokConfig } from '@/app/actions/byokSettings';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'fallback' | 'byok'>('fallback');
@@ -49,27 +44,20 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    const supabase = createBrowserSupabaseClient();
     async function loadKeyStatus() {
       try {
-        const keyExists = hasStoredKey();
-        if (keyExists) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            const byokConfig = await retrieveEncryptedByokConfig(session.access_token);
-            if (byokConfig?.apiKey) {
-              const prov = byokConfig.provider as AIProvider;
-              setActiveTab('byok');
-              setConfiguredProvider(prov);
-              setConfiguredModel(byokConfig.model ?? null);
-              setInitialProvider(prov);
-              setInitialBaseUrl(byokConfig.baseUrl ?? null);
-              setInitialMaxTokens(byokConfig.maxTokens ?? null);
-            }
-          }
+        const result = await loadByokConfig();
+        if (result.success && result.config) {
+          const prov = result.config.provider as AIProvider;
+          setActiveTab('byok');
+          setConfiguredProvider(prov);
+          setConfiguredModel(result.config.model ?? null);
+          setInitialProvider(prov);
+          setInitialBaseUrl(result.config.baseUrl ?? null);
+          setInitialMaxTokens(result.config.maxTokens ?? null);
         }
       } catch {
-        clearStoredKey();
+        // No config stored or error — stay on fallback tab
       } finally {
         setInitializing(false);
       }

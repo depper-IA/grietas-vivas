@@ -12,8 +12,7 @@ import { useLatestRef } from '@/hooks/useLatestRef';
 import { stripExifData } from '@/lib/exif/strip';
 import { analyzeWithFallback } from '@/app/actions/analysis';
 import { syncCapture } from '@/app/actions/sync';
-import { createBrowserSupabaseClient } from '@/lib/db/supabase';
-import { retrieveEncryptedByokConfig, hasStoredKey } from '@/lib/crypto/byokEncryption';
+import { loadByokConfig } from '@/app/actions/byokSettings';
 import type { AnalysisResult, AIConfig, RiskLevel, IAIProvider, AIProvider } from '@/lib/ai/types';
 import { aiService } from '@/lib/ai/aiService';
 // AI providers are dynamically imported inside `executeTriageAnalysis` so the
@@ -214,96 +213,77 @@ export default function CapturePage() {
           cleanImage = activeCapture.imageBlob;
         }
 
-        const hasByokKey = hasStoredKey();
+        const byokResult = await loadByokConfig();
+        if (byokResult.success && byokResult.config?.apiKey) {
+          const { apiKey, provider, model, baseUrl } = byokResult.config;
+          let providerInstance: IAIProvider | null = null;
 
-        if (hasByokKey) {
-          const supabase = createBrowserSupabaseClient();
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          if (session?.access_token) {
-            const byokConfig = await retrieveEncryptedByokConfig(session.access_token);
-            if (byokConfig?.apiKey) {
-              const { apiKey, provider, model, baseUrl } = byokConfig;
-              let providerInstance: IAIProvider | null = null;
-
-              // Provider modules are dynamically imported so the bundle only
-              // pulls in the one the user actually selected.
-              // (sdd/improve-project 3.2)
-              //
-              // Each module is bound inside its own case block: the modules
-              // have different shapes, so a single shared variable can only be
-              // annotated with one of them and every other branch fails to
-              // typecheck.
-              switch (provider) {
-                case 'anthropic': {
-                  const mod = await import('@/lib/ai/providers/anthropic');
-                  providerInstance = new mod.AnthropicProvider(apiKey, model);
-                  break;
-                }
-                case 'openrouter': {
-                  const mod = await import('@/lib/ai/providers/openrouter');
-                  providerInstance = new mod.OpenRouterProvider(apiKey, model, baseUrl);
-                  break;
-                }
-                case 'gemini': {
-                  const mod = await import('@/lib/ai/providers/gemini');
-                  providerInstance = new mod.GeminiProvider(apiKey, model);
-                  break;
-                }
-                case 'minimax': {
-                  const mod = await import('@/lib/ai/providers/minimax');
-                  providerInstance = new mod.MinimaxProvider(apiKey, model, baseUrl);
-                  break;
-                }
-                case 'nvidia-nim': {
-                  const mod = await import('@/lib/ai/providers/nvidia-nim');
-                  providerInstance = new mod.NvidiaNimProvider(apiKey, model, baseUrl);
-                  break;
-                }
-                case 'openai':
-                case 'custom':
-                default: {
-                  const mod = await import('@/lib/ai/providers/openai');
-                  providerInstance = new mod.OpenAIProvider(apiKey, model);
-                  break;
-                }
-              }
-
-              if (providerInstance) {
-                aiService.registerProvider(providerInstance);
-              }
-
-              const config: AIConfig = {
-                mode: 'byok',
-                byok: { provider, apiKey, model, baseUrl },
-                fallbackPriority: ['nvidia-nim', 'openrouter'],
-              };
-
-              const rawByokResult = await analyze(cleanImage, config);
-              if (rawByokResult) {
-                const weighted = applyStructuralRules(
-                  {
-                    riskLevel: rawByokResult.riskLevel,
-                    description: rawByokResult.description,
-                    confidence: rawByokResult.confidence,
-                  },
-                  structCtx
-                );
-                const enrichedResult: AnalysisResult = {
-                  ...rawByokResult,
-                  riskLevel: weighted.riskLevel,
-                  description: weighted.description,
-                };
-                const outcome = evaluateSafetyOverride(pat, signals, enrichedResult.riskLevel);
-                setFinalResult(enrichedResult);
-                setTriageOutcome(outcome);
-                setIsRunningAnalysis(false);
-                await syncToBackend(enrichedResult, activeCapture, ctxBlob, pat, signals);
-                return;
-              }
+          switch (provider) {
+            case 'anthropic': {
+              const mod = await import('@/lib/ai/providers/anthropic');
+              providerInstance = new mod.AnthropicProvider(apiKey, model);
+              break;
             }
+            case 'openrouter': {
+              const mod = await import('@/lib/ai/providers/openrouter');
+              providerInstance = new mod.OpenRouterProvider(apiKey, model, baseUrl);
+              break;
+            }
+            case 'gemini': {
+              const mod = await import('@/lib/ai/providers/gemini');
+              providerInstance = new mod.GeminiProvider(apiKey, model);
+              break;
+            }
+            case 'minimax': {
+              const mod = await import('@/lib/ai/providers/minimax');
+              providerInstance = new mod.MinimaxProvider(apiKey, model, baseUrl);
+              break;
+            }
+            case 'nvidia-nim': {
+              const mod = await import('@/lib/ai/providers/nvidia-nim');
+              providerInstance = new mod.NvidiaNimProvider(apiKey, model, baseUrl);
+              break;
+            }
+            case 'openai':
+            case 'custom':
+            default: {
+              const mod = await import('@/lib/ai/providers/openai');
+              providerInstance = new mod.OpenAIProvider(apiKey, model);
+              break;
+            }
+          }
+
+          if (providerInstance) {
+            aiService.registerProvider(providerInstance);
+          }
+
+          const config: AIConfig = {
+            mode: 'byok',
+            byok: { provider: provider as AIProvider, apiKey, model, baseUrl },
+            fallbackPriority: ['nvidia-nim', 'openrouter'],
+          };
+
+          const rawByokResult = await analyze(cleanImage, config);
+          if (rawByokResult) {
+            const weighted = applyStructuralRules(
+              {
+                riskLevel: rawByokResult.riskLevel,
+                description: rawByokResult.description,
+                confidence: rawByokResult.confidence,
+              },
+              structCtx
+            );
+            const enrichedResult: AnalysisResult = {
+              ...rawByokResult,
+              riskLevel: weighted.riskLevel,
+              description: weighted.description,
+            };
+            const outcome = evaluateSafetyOverride(pat, signals, enrichedResult.riskLevel);
+            setFinalResult(enrichedResult);
+            setTriageOutcome(outcome);
+            setIsRunningAnalysis(false);
+            await syncToBackend(enrichedResult, activeCapture, ctxBlob, pat, signals);
+            return;
           }
         }
 

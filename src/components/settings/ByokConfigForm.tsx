@@ -20,12 +20,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  storeEncryptedByokConfig,
-  clearStoredKey,
-  hasStoredKey,
-  retrieveEncryptedByokConfig,
-} from '@/lib/crypto/byokEncryption';
-import { createBrowserSupabaseClient } from '@/lib/db/supabase';
+  saveByokConfig,
+  deleteByokConfig,
+  loadByokConfig,
+} from '@/app/actions/byokSettings';
 import { PROVIDER_METADATA, PROVIDER_ORDER } from '@/lib/ai/providers/config';
 import type { AIProvider } from '@/lib/ai/types';
 import { MotionButton } from '@/components/ui/MotionButton';
@@ -67,8 +65,6 @@ export function ByokConfigForm({
   initialBaseUrl,
   initialMaxTokens,
 }: ByokConfigFormProps) {
-  const supabase = createBrowserSupabaseClient();
-
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>(
     initialProvider ?? configuredProvider ?? 'gemini',
   );
@@ -117,7 +113,7 @@ export function ByokConfigForm({
       try {
         if (!apiKey.trim()) {
           if (storedKeyPreview) {
-            // User is updating other settings without changing the key — use stored key
+            // User is updating other settings without changing the key
           } else {
             setError('Por favor ingresa tu clave API.');
             setLoading(false);
@@ -137,23 +133,19 @@ export function ByokConfigForm({
         const effectiveMaxTokens =
           !isNaN(parsedMaxTokens) && parsedMaxTokens > 0 ? parsedMaxTokens : 2048;
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          setError('No hay sesión activa. Inicia sesión nuevamente.');
+        const result = await saveByokConfig({
+          apiKey: effectiveApiKey,
+          provider: selectedProvider,
+          model: effectiveModel,
+          baseUrl: baseUrl.trim() || undefined,
+          maxTokens: effectiveMaxTokens,
+        });
+
+        if (!result.success) {
+          setError(result.error || 'Error al guardar configuración.');
           setLoading(false);
           return;
         }
-
-        await storeEncryptedByokConfig(
-          {
-            apiKey: effectiveApiKey,
-            provider: selectedProvider,
-            model: effectiveModel,
-            baseUrl: baseUrl.trim() || undefined,
-            maxTokens: effectiveMaxTokens,
-          },
-          session.access_token,
-        );
 
         setStoredKeyPreview(effectiveApiKey);
         setApiKey('');
@@ -175,13 +167,13 @@ export function ByokConfigForm({
       customModel,
       baseUrl,
       maxTokens,
-      supabase.auth,
+      storedKeyPreview,
       onConfigured,
     ],
   );
 
-  const handleClear = useCallback(() => {
-    clearStoredKey();
+  const handleClear = useCallback(async () => {
+    await deleteByokConfig();
     setStoredKeyPreview(null);
     setSuccess(
       'Clave eliminada. Se usará el modelo predeterminado del servidor (NVIDIA MiniMax M3).',
@@ -206,17 +198,13 @@ export function ByokConfigForm({
   // Load stored key preview on mount for the eye toggle
   useEffect(() => {
     async function loadStoredKey() {
-      if (!hasStoredKey()) return;
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const config = await retrieveEncryptedByokConfig(session.access_token);
-          if (config?.apiKey) {
-            setStoredKeyPreview(config.apiKey);
-          }
+        const result = await loadByokConfig();
+        if (result.success && result.config?.apiKey) {
+          setStoredKeyPreview(result.config.apiKey);
         }
       } catch {
-        // silently fail — key might be corrupted
+        // silently fail
       }
     }
     void loadStoredKey();
