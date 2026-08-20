@@ -66,3 +66,6 @@ generate_image_gcp.py
 public/*.jpeg
 public/design.md
 public/icons/.backup-*/
+
+# Local debugging screenshots
+Captura de pantalla *.png

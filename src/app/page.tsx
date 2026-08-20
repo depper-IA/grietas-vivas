@@ -15,9 +15,9 @@ import { MotionButton } from '@/components/ui/MotionButton';
 
 export default function Home() {
   return (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-between bg-surface-0 px-4 py-5 sm:px-6 sm:py-8 text-text-primary pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] overflow-x-hidden">
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:px-6 sm:py-8 text-text-primary pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] overflow-x-hidden">
       {/* Hero Container: Logo + Title + Value Prop */}
-      <div className="relative w-full max-w-md mx-auto flex-1 flex flex-col justify-center space-y-7 mt-2">
+      <div className="relative w-full max-w-md mx-auto flex flex-col justify-center space-y-7">
         {/* Brand Logo: Emil Kowalski-style centered logo on circular badge */}
         <div className="flex flex-col items-center text-center space-y-3.5">
           <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-white p-3 shadow-lg border border-border-default flex items-center justify-center">

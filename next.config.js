@@ -111,7 +111,9 @@ const nextConfig = {
       // navegador real que no está disponible en este entorno; se prefiere
       // no shippear una config de nonce sin poder confirmar que no rompe
       // la hidratación en silencio.
-      "script-src 'self' 'unsafe-inline'",
+      // 'unsafe-eval' solo en desarrollo: el runtime de Fast Refresh/webpack
+      // HMR evalua modulos con eval() en dev. Nunca se agrega en produccion.
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
       // 'unsafe-inline' aquí es por el prop style={{}} de React (ej. el
       // pan/zoom de ImageZoomModal), que compila a atributo style="" inline.
       // No existe mecanismo de nonce para atributos style, solo para <style>.
