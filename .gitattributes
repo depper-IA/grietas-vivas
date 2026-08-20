@@ -1,0 +1,17 @@
+# Normaliza los finales de línea a LF en el repositorio, sin importar
+# el checkout local del contribuidor (evita el ruido de warnings de
+# Git y diffs espurios entre Windows/Mac/Linux).
+* text=auto eol=lf
+
+# Binarios: nunca normalizar ni diffear como texto.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
