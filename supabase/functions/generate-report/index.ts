@@ -12,7 +12,7 @@
  * Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 import { timingSafeEqualString } from "../_shared/crypto.ts";
 import type {
   ReportInput,

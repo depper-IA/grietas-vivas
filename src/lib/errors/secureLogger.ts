@@ -109,6 +109,27 @@ export function logAnalysis(data: AnalysisLogEntry): void {
 }
 
 /**
+ * Logs a free-form message safely, sanitizing API keys, image data,
+ * GPS coordinates, emails, phone numbers, and stack traces before output.
+ *
+ * Use for structured logs whose content isn't fully known ahead of time
+ * (e.g. provider names, categorized errors, raw response excerpts).
+ */
+export function logMessage(level: 'info' | 'warn' | 'error', message: string): void {
+  const sanitized = sanitizeForLog(message);
+  switch (level) {
+    case 'error':
+      console.error(sanitized);
+      break;
+    case 'warn':
+      console.warn(sanitized);
+      break;
+    default:
+      console.info(sanitized);
+  }
+}
+
+/**
  * Logs a sync operation result safely.
  *
  * Safe fields: item ID (already a UUID, safe), success/failure, duration.

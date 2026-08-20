@@ -76,7 +76,7 @@ export type TriageLevel =
  * | token            | vs surface-0 | vs surface-1 | vs surface-2 |
  * | text-primary     | 18.36:1 OK  | 17.51:1 OK   | 14.83:1 OK   |
  * | text-secondary   | 11.42:1 OK  | 10.91:1 OK   | 9.24:1  OK   |
- * | text-muted       | 7.58:1  OK  | 7.24:1  OK   | 6.15:1  AA   |
+ * | text-muted       | 8.13:1  OK  | 7.42:1  OK   | 6.60:1  AA   |
  * | brand.accent     | 4.83:1  AA  | 4.61:1  AA   | 3.91:1       |
  * | text-white/brand.cta | 4.83:1 AA | 4.61:1 AA   | 3.91:1       |
  *
@@ -97,7 +97,7 @@ export const SEMANTIC_TOKENS: SemanticTokens = {
   text: {
     primary: '#0f172a',
     secondary: '#334155',
-    muted: '#334155',
+    muted: '#415163',
   },
   brand: {
     // Red-600 (#dc2626) — Acento institucional unificado para CTAs, botones, bordes activos y focos.

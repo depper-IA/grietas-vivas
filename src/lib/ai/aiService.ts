@@ -7,6 +7,7 @@
  */
 
 import { analysisResultSchema } from '@/lib/validation/schemas';
+import { logMessage } from '@/lib/errors/secureLogger';
 import type {
   AIConfig,
   AnalysisPayload,
@@ -250,52 +251,6 @@ export class AIServiceAdapter implements IAIServiceAdapter {
   }
 
   /**
-   * Select the appropriate provider based on configuration.
-   *
-   * BYOK mode: route to the provider specified in config.byok.provider
-   * Fallback mode: iterate fallbackPriority, return first available provider
-   */
-  private async selectProvider(config: AIConfig): Promise<IAIProvider> {
-    if (config.mode === 'byok' && config.byok?.apiKey) {
-      const providerName = config.byok.provider;
-      const provider = this.providers.get(providerName);
-
-      if (!provider) {
-        throw new AIServiceError(
-          'PROVIDER_NOT_FOUND',
-          `BYOK provider "${providerName}" is not registered`,
-        );
-      }
-
-      return provider;
-    }
-
-    // Fallback mode: iterate priority list
-    for (const providerName of config.fallbackPriority) {
-      const provider = this.providers.get(providerName);
-      if (!provider) {
-        continue;
-      }
-
-      try {
-        const available = await provider.isAvailable();
-        if (available) {
-          return provider;
-        }
-      } catch {
-        // Provider availability check failed, try next
-        this.log('warn', `Availability check failed for ${providerName}, skipping`);
-        continue;
-      }
-    }
-
-    throw new AIServiceError(
-      'NO_PROVIDER_AVAILABLE',
-      'No AI provider is currently available for analysis',
-    );
-  }
-
-  /**
    * Devuelve la lista de providers a intentar en orden de prioridad.
    * BYOK usa solo su provider; fallback usa la lista de prioridad completa.
    */
@@ -407,18 +362,7 @@ export class AIServiceAdapter implements IAIServiceAdapter {
    */
   private log(level: 'info' | 'warn' | 'error', message: string): void {
     const timestamp = new Date().toISOString();
-    const entry = `[AIService][${timestamp}][${level.toUpperCase()}] ${message}`;
-
-    switch (level) {
-      case 'error':
-        console.error(entry);
-        break;
-      case 'warn':
-        console.warn(entry);
-        break;
-      default:
-        console.info(entry);
-    }
+    logMessage(level, `[AIService][${timestamp}][${level.toUpperCase()}] ${message}`);
   }
 }
 
