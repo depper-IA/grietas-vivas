@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MetadataIndicators } from '@/components/capture/MetadataIndicators';
 import { GpsWarningBanner } from '@/components/capture/GpsWarningBanner';
 import type { GpsStatus, OrientationStatus } from '@/components/capture/MetadataIndicators';
@@ -8,19 +8,17 @@ import { captureService } from '@/lib/capture/captureService';
 import type { CaptureResult } from '@/lib/capture/types';
 import { useAIAnalysis } from '@/hooks/useAIAnalysis';
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation';
+import { useLatestRef } from '@/hooks/useLatestRef';
 import { stripExifData } from '@/lib/exif/strip';
 import { analyzeWithFallback } from '@/app/actions/analysis';
 import { syncCapture } from '@/app/actions/sync';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
 import { retrieveEncryptedByokConfig, hasStoredKey } from '@/lib/crypto/byokEncryption';
-import type { AnalysisResult, AIConfig, RiskLevel, IAIProvider } from '@/lib/ai/types';
+import type { AnalysisResult, AIConfig, RiskLevel, IAIProvider, AIProvider } from '@/lib/ai/types';
 import { aiService } from '@/lib/ai/aiService';
-import { AnthropicProvider } from '@/lib/ai/providers/anthropic';
-import { OpenAIProvider } from '@/lib/ai/providers/openai';
-import { OpenRouterProvider } from '@/lib/ai/providers/openrouter';
-import { GeminiProvider } from '@/lib/ai/providers/gemini';
-import { MinimaxProvider } from '@/lib/ai/providers/minimax';
-import { NvidiaNimProvider } from '@/lib/ai/providers/nvidia-nim';
+// AI providers are dynamically imported inside `executeTriageAnalysis` so the
+// initial bundle does not pull all 6 of them. The fallback Server Action
+// `analyzeWithFallback` stays statically imported. (sdd/improve-project 3.3)
 import {
   evaluateSafetyOverride,
   evaluateEmergencyOffline,
@@ -69,32 +67,15 @@ export default function CapturePage() {
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
 
-  // Refs para closures asincrónicas
-  const patternRef = useRef<CrackPattern | null>(pattern);
-  const dangerSignalsRef = useRef<DangerSignals>(dangerSignals);
-  const structuralContextRef = useRef<StructuralContext>(structuralContext);
-  const contextImageBlobRef = useRef<Blob | null>(contextImageBlob);
-  const captureResultRef = useRef<CaptureResult | null>(captureResult);
-  const detailImageBlobRef = useRef<Blob | null>(detailImageBlob);
-
-  useEffect(() => {
-    patternRef.current = pattern;
-  }, [pattern]);
-  useEffect(() => {
-    dangerSignalsRef.current = dangerSignals;
-  }, [dangerSignals]);
-  useEffect(() => {
-    structuralContextRef.current = structuralContext;
-  }, [structuralContext]);
-  useEffect(() => {
-    contextImageBlobRef.current = contextImageBlob;
-  }, [contextImageBlob]);
-  useEffect(() => {
-    captureResultRef.current = captureResult;
-  }, [captureResult]);
-  useEffect(() => {
-    detailImageBlobRef.current = detailImageBlob;
-  }, [detailImageBlob]);
+  // Refs para closures asincrónicas — useLatestRef consolida los 6 pares
+  // useRef+useEffect del legacy en una sola linea por state slice.
+  // (sdd/improve-project 3.2)
+  const patternRef = useLatestRef(pattern);
+  const dangerSignalsRef = useLatestRef(dangerSignals);
+  const structuralContextRef = useLatestRef(structuralContext);
+  const contextImageBlobRef = useLatestRef(contextImageBlob);
+  const captureResultRef = useLatestRef(captureResult);
+  const detailImageBlobRef = useLatestRef(detailImageBlob);
 
   // Estado de análisis y sincronización
   const { analyze, isAnalyzing, error: analysisError } = useAIAnalysis();
@@ -245,27 +226,47 @@ export default function CapturePage() {
               const { apiKey, provider, model, baseUrl } = byokConfig;
               let providerInstance: IAIProvider | null = null;
 
+              // Provider modules are dynamically imported so the bundle only
+              // pulls in the one the user actually selected.
+              // (sdd/improve-project 3.2)
+              //
+              // Each module is bound inside its own case block: the modules
+              // have different shapes, so a single shared variable can only be
+              // annotated with one of them and every other branch fails to
+              // typecheck.
               switch (provider) {
-                case 'anthropic':
-                  providerInstance = new AnthropicProvider(apiKey, model);
+                case 'anthropic': {
+                  const mod = await import('@/lib/ai/providers/anthropic');
+                  providerInstance = new mod.AnthropicProvider(apiKey, model);
                   break;
-                case 'openrouter':
-                  providerInstance = new OpenRouterProvider(apiKey, model, baseUrl);
+                }
+                case 'openrouter': {
+                  const mod = await import('@/lib/ai/providers/openrouter');
+                  providerInstance = new mod.OpenRouterProvider(apiKey, model, baseUrl);
                   break;
-                case 'gemini':
-                  providerInstance = new GeminiProvider(apiKey, model);
+                }
+                case 'gemini': {
+                  const mod = await import('@/lib/ai/providers/gemini');
+                  providerInstance = new mod.GeminiProvider(apiKey, model);
                   break;
-                case 'minimax':
-                  providerInstance = new MinimaxProvider(apiKey, model, baseUrl);
+                }
+                case 'minimax': {
+                  const mod = await import('@/lib/ai/providers/minimax');
+                  providerInstance = new mod.MinimaxProvider(apiKey, model, baseUrl);
                   break;
-                case 'nvidia-nim':
-                  providerInstance = new NvidiaNimProvider(apiKey, model, baseUrl);
+                }
+                case 'nvidia-nim': {
+                  const mod = await import('@/lib/ai/providers/nvidia-nim');
+                  providerInstance = new mod.NvidiaNimProvider(apiKey, model, baseUrl);
                   break;
+                }
                 case 'openai':
                 case 'custom':
-                default:
-                  providerInstance = new OpenAIProvider(apiKey, model);
+                default: {
+                  const mod = await import('@/lib/ai/providers/openai');
+                  providerInstance = new mod.OpenAIProvider(apiKey, model);
                   break;
+                }
               }
 
               if (providerInstance) {
@@ -411,7 +412,17 @@ export default function CapturePage() {
     } else {
       handleResetFlow();
     }
-  }, [executeTriageAnalysis, handleResetFlow]);
+    // Las refs de useLatestRef son estables (identidad de useRef), así que
+    // listarlas no re-crea el callback; solo satisface exhaustive-deps.
+  }, [
+    executeTriageAnalysis,
+    handleResetFlow,
+    captureResultRef,
+    contextImageBlobRef,
+    structuralContextRef,
+    patternRef,
+    dangerSignalsRef,
+  ]);
 
   return (
     <div className="flex flex-col flex-1 w-full max-w-2xl mx-auto text-text-primary px-3 sm:px-4 py-2 overflow-x-hidden">

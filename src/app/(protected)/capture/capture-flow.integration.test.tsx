@@ -140,10 +140,13 @@ async function completarFlujo5Pasos() {
 
   // Paso 3: Patrón
   fireEvent.click(screen.getByTestId('crack-pattern-diagonal_shear'));
-  fireEvent.click(screen.getByTestId('dual-flow-continue'));
+  // `MotionButton` se carga con next/dynamic, así que en su primer montaje
+  // renderiza el fallback (null) hasta que resuelve el chunk: hay que esperarlo
+  // en vez de consultarlo de forma síncrona.
+  fireEvent.click(await screen.findByTestId('dual-flow-continue'));
 
   // Paso 4: Señales de peligro
-  fireEvent.click(screen.getByTestId('dual-flow-continue'));
+  fireEvent.click(await screen.findByTestId('dual-flow-continue'));
 
   // Paso 5: Confirmar y analizar
   fireEvent.click(screen.getByTestId(FLOW_SUBMIT_BUTTON));
