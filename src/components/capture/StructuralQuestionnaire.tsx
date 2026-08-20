@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { StructuralContext } from '@/lib/ai/structuralPrompt';
 import {
   Building2,
@@ -15,7 +15,6 @@ import {
   TrendingUp,
   MinusCircle,
   Coins,
-  CreditCard,
   Hand,
   XCircle,
   ChevronLeft,
@@ -33,18 +32,28 @@ interface OptionItem<T> {
   Icon: LucideIcon;
 }
 
-interface QuestionDef<T> {
+interface QuestionDef {
   question: string;
   subtitle?: string;
-  field: keyof StructuralContext;
-  options: OptionItem<T>[];
+  options: OptionItem<unknown>[];
 }
+
+/** Identificador de cada paso del cuestionario. `coinDenomination` solo aparece
+ * cuando el usuario indica que usó una moneda como referencia de escala. */
+type StepId = 'element' | 'crosses' | 'growth' | 'scale' | 'coinDenomination';
+
+const BASE_STEPS: StepId[] = ['element', 'crosses', 'growth', 'scale'];
 
 /**
  * StructuralQuestionnaire — Recopilación de contexto estructural previa al análisis.
  *
  * Realiza preguntas de opción múltiple sobre el elemento donde se ubica la grieta.
  * Este contexto alimenta el motor de reglas estructurales para ponderar el nivel de riesgo.
+ *
+ * La referencia de escala se limita a moneda colombiana o mano: se eliminó la opción
+ * de "tarjeta" porque en una emergencia el usuario suele usar la tarjeta que tenga a
+ * mano (bancaria o cédula), y esa foto viaja a proveedores de IA externos y queda
+ * almacenada — un riesgo de exposición de datos personales/de pago injustificado.
  *
  * Cero emojis: utiliza exclusivamente iconografía de Lucide React y tokens semánticos dark-first.
  */
@@ -56,89 +65,66 @@ export function StructuralQuestionnaire({ onComplete, onSkip }: Props) {
     recentGrowth: false,
   });
 
-  const questions: [
-    QuestionDef<StructuralContext['elementType']>,
-    QuestionDef<boolean>,
-    QuestionDef<boolean>,
-    QuestionDef<StructuralContext['scaleReferenceType']>
-  ] = [
-    // Paso 0: Tipo de elemento
-    {
-      question: '¿En qué elemento está la grieta?',
-      field: 'elementType',
-      options: [
-        { label: 'Columna', value: 'column', Icon: Building2 },
-        { label: 'Viga', value: 'beam', Icon: Ruler },
-        { label: 'Muro de carga', value: 'load-bearing-wall', Icon: Layers },
-        { label: 'Muro divisorio', value: 'partition-wall', Icon: DoorClosed },
-        { label: 'Placa / Techo', value: 'slab', Icon: Square },
-        { label: 'Cimiento', value: 'foundation', Icon: HardHat },
-        { label: 'No sé', value: 'other', Icon: HelpCircle },
-      ],
-    },
-    // Paso 1: Cruza el elemento completo
-    {
-      question: '¿La grieta cruza de lado a lado del elemento?',
-      field: 'crossesFullSpan',
-      options: [
-        { label: 'Sí, cruza completamente', value: true, Icon: MoveHorizontal },
-        { label: 'No, es parcial', value: false, Icon: ArrowRight },
-      ],
-    },
-    // Paso 2: Crecimiento reciente post-sismo
-    {
-      question: '¿La grieta creció después del último sismo?',
-      field: 'recentGrowth',
-      options: [
-        { label: 'Sí, es nueva o creció', value: true, Icon: TrendingUp },
-        { label: 'No / No sé', value: false, Icon: MinusCircle },
-      ],
-    },
-    // Paso 3: Referencia de escala para dimensionamiento
-    {
-      question: '¿Pusiste un objeto de referencia junto a la grieta?',
-      subtitle: '(moneda, tarjeta, mano) para medir el tamaño real',
-      field: 'scaleReferenceType',
-      options: [
-        { label: 'Sí, una moneda', value: 'coin', Icon: Coins },
-        { label: 'Sí, una tarjeta', value: 'card', Icon: CreditCard },
-        { label: 'Sí, mi mano', value: 'hand', Icon: Hand },
-        { label: 'No, ninguno', value: 'none', Icon: XCircle },
-      ],
-    },
-  ];
+  const steps = useMemo<StepId[]>(
+    () => (context.scaleReferenceType === 'coin' ? [...BASE_STEPS, 'coinDenomination'] : BASE_STEPS),
+    [context.scaleReferenceType]
+  );
+
+  const finalize = (overrides: Partial<StructuralContext>) => {
+    const finalContext: StructuralContext = {
+      elementType: (context.elementType as StructuralContext['elementType']) || 'other',
+      crossesFullSpan: context.crossesFullSpan ?? false,
+      hasScaleReference: context.hasScaleReference ?? false,
+      scaleReferenceType: context.scaleReferenceType ?? 'none',
+      recentGrowth: context.recentGrowth ?? false,
+      ...overrides,
+    };
+    onComplete(finalContext);
+  };
 
   const handleAnswer = (value: unknown) => {
-    const currentQ = questions[step];
+    const current = steps[step];
 
-    if (currentQ.field === 'scaleReferenceType') {
-      const hasRef = value !== 'none';
-      setContext((prev) => ({
-        ...prev,
-        hasScaleReference: hasRef,
-        scaleReferenceType: value as StructuralContext['scaleReferenceType'],
-      }));
-    } else {
-      setContext((prev) => ({ ...prev, [currentQ.field]: value }));
-    }
+    switch (current) {
+      case 'element':
+        setContext((prev) => ({ ...prev, elementType: value as StructuralContext['elementType'] }));
+        setStep(step + 1);
+        return;
 
-    if (step < questions.length - 1) {
-      setStep(step + 1);
-    } else {
-      // Completar cuestionario
-      const finalContext: StructuralContext = {
-        elementType: (context.elementType as StructuralContext['elementType']) || 'other',
-        crossesFullSpan: context.crossesFullSpan ?? false,
-        hasScaleReference: value !== 'none',
-        scaleReferenceType: value !== 'none' ? (value as StructuralContext['scaleReferenceType']) : 'none',
-        recentGrowth: context.recentGrowth ?? false,
-      };
-      onComplete(finalContext);
+      case 'crosses':
+        setContext((prev) => ({ ...prev, crossesFullSpan: value as boolean }));
+        setStep(step + 1);
+        return;
+
+      case 'growth':
+        setContext((prev) => ({ ...prev, recentGrowth: value as boolean }));
+        setStep(step + 1);
+        return;
+
+      case 'scale': {
+        const refType = value as NonNullable<StructuralContext['scaleReferenceType']>;
+        const hasRef = refType !== 'none';
+
+        if (refType === 'coin') {
+          setContext((prev) => ({ ...prev, hasScaleReference: hasRef, scaleReferenceType: refType }));
+          setStep(step + 1);
+          return;
+        }
+
+        finalize({ hasScaleReference: hasRef, scaleReferenceType: refType, coinDenomination: undefined });
+        return;
+      }
+
+      case 'coinDenomination': {
+        const denom = value as StructuralContext['coinDenomination'];
+        finalize({ scaleReferenceType: 'coin', hasScaleReference: true, coinDenomination: denom });
+        return;
+      }
     }
   };
 
-  const currentQ = questions[step];
-  const progress = ((step + 1) / questions.length) * 100;
+  const currentQ = getStepConfig(steps[step]);
+  const progress = ((step + 1) / steps.length) * 100;
 
   return (
     <div className="w-full flex flex-col gap-4 rounded-2xl border border-border-default bg-surface-1 p-4 sm:p-6 shadow-sm">
@@ -146,7 +132,7 @@ export function StructuralQuestionnaire({ onComplete, onSkip }: Props) {
       <div>
         <div className="flex items-center justify-between text-xs text-text-muted mb-2">
           <span className="font-semibold font-mono tabular-nums text-text-primary">
-            Pregunta {step + 1} de {questions.length}
+            Pregunta {step + 1} de {steps.length}
           </span>
           <button
             type="button"
@@ -224,4 +210,63 @@ export function StructuralQuestionnaire({ onComplete, onSkip }: Props) {
       )}
     </div>
   );
+}
+
+function getStepConfig(stepId: StepId): QuestionDef {
+  switch (stepId) {
+    case 'element':
+      return {
+        question: '¿En qué elemento está la grieta?',
+        options: [
+          { label: 'Columna', value: 'column', Icon: Building2 },
+          { label: 'Viga', value: 'beam', Icon: Ruler },
+          { label: 'Muro de carga', value: 'load-bearing-wall', Icon: Layers },
+          { label: 'Muro divisorio', value: 'partition-wall', Icon: DoorClosed },
+          { label: 'Placa / Techo', value: 'slab', Icon: Square },
+          { label: 'Cimiento', value: 'foundation', Icon: HardHat },
+          { label: 'No sé', value: 'other', Icon: HelpCircle },
+        ],
+      };
+
+    case 'crosses':
+      return {
+        question: '¿La grieta cruza de lado a lado del elemento?',
+        options: [
+          { label: 'Sí, cruza completamente', value: true, Icon: MoveHorizontal },
+          { label: 'No, es parcial', value: false, Icon: ArrowRight },
+        ],
+      };
+
+    case 'growth':
+      return {
+        question: '¿La grieta creció después del último sismo?',
+        options: [
+          { label: 'Sí, es nueva o creció', value: true, Icon: TrendingUp },
+          { label: 'No / No sé', value: false, Icon: MinusCircle },
+        ],
+      };
+
+    case 'scale':
+      return {
+        question: '¿Pusiste un objeto de referencia junto a la grieta?',
+        subtitle: '(moneda o mano) para medir el tamaño real',
+        options: [
+          { label: 'Sí, una moneda', value: 'coin', Icon: Coins },
+          { label: 'Sí, mi mano', value: 'hand', Icon: Hand },
+          { label: 'No, ninguno', value: 'none', Icon: XCircle },
+        ],
+      };
+
+    case 'coinDenomination':
+      return {
+        question: '¿Qué moneda colombiana usaste?',
+        subtitle: 'Cada denominación tiene un diámetro oficial distinto; esto calibra la medición',
+        options: [
+          { label: '$100', value: 100, Icon: Coins },
+          { label: '$200', value: 200, Icon: Coins },
+          { label: '$500', value: 500, Icon: Coins },
+          { label: '$1.000', value: 1000, Icon: Coins },
+        ],
+      };
+  }
 }

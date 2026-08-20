@@ -21,6 +21,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import Image from 'next/image';
 import {
   Camera,
   Coins,
@@ -29,6 +30,8 @@ import {
   Square,
   Upload,
   SkipForward,
+  Eye,
+  X,
 } from 'lucide-react';
 import { CameraViewfinder } from './CameraViewfinder';
 
@@ -206,6 +209,7 @@ export function DualCaptureHUD({
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showExampleModal, setShowExampleModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCaptureClick = useCallback(() => {
@@ -333,19 +337,79 @@ export function DualCaptureHUD({
         {(cameraError || uploadError) && (
           <p
             role="alert"
-            className="mt-2 text-center text-xs text-status-critical-fg"
+            className="mt-2 text-center text-xs text-status-critical-border font-medium"
           >
             {cameraError || uploadError}
           </p>
         )}
       </div>
 
-      {/* Texto guia descriptivo */}
-      <p className="text-sm leading-snug text-text-secondary">
-        {isContext
-          ? 'Aléjate unos 2 metros. Enmarca columnas, vigas y elementos estructurales del entorno para dar contexto del daño.'
-          : 'Acércate a 30-50 cm de la grieta. Coloca una moneda o tarjeta al lado para tener referencia de escala.'}
-      </p>
+      {/* Texto guia descriptivo con boton interactivo para ver foto de ejemplo */}
+      <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-surface-2/60 border border-border-subtle">
+        <p className="text-xs sm:text-sm leading-snug text-text-secondary flex-1">
+          {isContext
+            ? 'Aléjate unos 2 metros. Enmarca columnas, vigas y elementos estructurales del entorno.'
+            : 'Acércate a 30-50 cm. Coloca una moneda o tarjeta al lado para dar escala a la IA.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowExampleModal(true)}
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-brand-accent/40 bg-surface-1 px-3 py-1 text-xs font-semibold text-brand-accent hover:bg-surface-2 transition-colors shrink-0"
+        >
+          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Ver ejemplo</span>
+        </button>
+      </div>
+
+      {/* Modal didactico de encuadre */}
+      {showExampleModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ejemplo de encuadre fotográfico"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+        >
+          <div className="relative flex flex-col w-full max-w-sm rounded-2xl border border-border-default bg-surface-0 shadow-2xl overflow-hidden p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+              <h3 className="text-sm font-bold text-text-primary">
+                {isContext ? 'Foto de Contexto (2 m)' : 'Foto de Detalle con Escala (30-50 cm)'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowExampleModal(false)}
+                aria-label="Cerrar ejemplo"
+                className="p-1 rounded-lg text-text-muted hover:text-text-primary"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="relative aspect-[4/3] w-full rounded-xl overflow-hidden bg-surface-2 border border-border-subtle">
+              <Image
+                src={isContext ? '/examples/guide-context-beam.webp' : '/examples/guide-detail-coin.webp'}
+                alt="Ejemplo didáctico de encuadre"
+                fill
+                sizes="(min-width: 640px) 384px, 100vw"
+                className="object-cover"
+              />
+            </div>
+
+            <p className="text-xs text-text-secondary leading-relaxed">
+              {isContext
+                ? 'Muestra las uniones con columnas, vigas y losas para que los algoritmos de IA entiendan la ubicación global del daño.'
+                : 'Una moneda o tarjeta permite a la IA calibrar con exactitud el ancho milimétrico y la profundidad de la fisura.'}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowExampleModal(false)}
+              className="w-full min-h-[40px] rounded-xl bg-brand-cta text-xs font-semibold text-white shadow-sm hover:bg-brand-cta/90"
+            >
+              Entendido, volver al visor
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Thumbnail del step 1 cuando estamos en step 2 */}
       {isContext && detailPreviewUrl && (

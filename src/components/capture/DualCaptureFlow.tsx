@@ -393,7 +393,7 @@ export function DualCaptureFlow({
                 Marca los síntomas de advertencia que observes en puertas, pisos o elementos vecinos.
               </p>
             </div>
-            <ShieldAlert className="h-5 w-5 text-status-critical-fg shrink-0" />
+            <ShieldAlert className="h-5 w-5 text-status-critical-border shrink-0" />
           </div>
           <DangerSignalsChecklist
             value={dangerSignals}
@@ -491,7 +491,7 @@ export function DualCaptureFlow({
 
             <div className="flex items-center justify-between rounded-xl bg-surface-2/60 p-2.5 border border-border-subtle">
               <dt className="text-text-muted flex items-center gap-1.5">
-                <AlertOctagon className="h-4 w-4 text-status-critical-fg shrink-0" />
+                <AlertOctagon className="h-4 w-4 text-status-critical-border shrink-0" />
                 <span>Señales activas</span>
               </dt>
               <dd className="font-semibold text-text-primary text-right">

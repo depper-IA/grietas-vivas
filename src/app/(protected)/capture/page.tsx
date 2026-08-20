@@ -495,14 +495,22 @@ export default function CapturePage() {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleRetry}
-                className="mt-4 w-full min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-brand-cta px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-cta/25 hover:bg-brand-cta/90 active:scale-[0.98] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1"
-              >
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Reintentar
-              </button>
+              <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="min-h-[44px] flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-cta px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-cta/25 hover:bg-brand-cta/90 active:scale-[0.98] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-1"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  <span>Reintentar</span>
+                </button>
+                <a
+                  href="/settings?reason=fallback_failed"
+                  className="min-h-[44px] flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-border-default bg-white px-5 py-2.5 text-sm font-semibold text-brand-accent hover:bg-surface-2 active:scale-[0.98] transition-all"
+                >
+                  <span>Conectar mi propia API</span>
+                </a>
+              </div>
             </div>
           )}
 

@@ -188,7 +188,7 @@ export function CapturePreview({
         </button>
 
         {saveError && (
-          <p role="alert" className="text-xs text-status-critical-fg text-center">{saveError}</p>
+          <p role="alert" className="text-xs text-status-critical-border font-medium text-center">{saveError}</p>
         )}
 
         <button

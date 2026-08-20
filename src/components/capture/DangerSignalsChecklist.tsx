@@ -34,7 +34,7 @@ function CriticalBanner() {
       className="flex items-start gap-3 rounded-xl border border-status-critical-border bg-status-critical/15 p-3 text-text-primary sm:p-4"
     >
       <AlertOctagon
-        className="h-5 w-5 shrink-0 text-status-critical-fg"
+        className="h-5 w-5 shrink-0 text-status-critical-border"
         aria-hidden="true"
         focusable="false"
       />
@@ -90,7 +90,7 @@ function SignalCard({
         className={[
           'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border',
           active
-            ? 'border-status-critical-border bg-status-critical/20 text-status-critical-fg'
+            ? 'border-status-critical-border bg-status-critical/20 text-status-critical-border'
             : 'border-border-subtle bg-surface-2 text-brand-accent',
         ].join(' ')}
         aria-hidden="true"

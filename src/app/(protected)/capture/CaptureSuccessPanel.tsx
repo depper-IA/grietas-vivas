@@ -16,7 +16,7 @@
  * Cero emojis: SVG Lucide + tokens semanticos dark-first.
  */
 
-import { Camera, FileText } from 'lucide-react';
+import { Camera, FileText, Key, Settings2 } from 'lucide-react';
 import { PostTriageActionGuide } from '@/components/reports/PostTriageActionGuide';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { FormattedAnalysisText } from '@/components/reports/FormattedAnalysisText';
@@ -48,6 +48,7 @@ export interface CaptureSuccessPanelProps {
  * Estructura:
  *   [PostTriageActionGuide] banner 4-tier
  *   [SeverityBadge] + confianza + proveedor
+ *   [Aviso Offline -> CTA a Configuración] si se usó el motor local
  *   [Link al reporte completo] si reportId presente
  *   [Boton Nueva Captura]
  */
@@ -61,6 +62,7 @@ export function CaptureSuccessPanel({
   className = '',
 }: CaptureSuccessPanelProps) {
   const severity = mapRiskLevelToSeverity(aiRiskLevel);
+  const isOfflineFallback = description.includes('[Triaje Offline');
 
   return (
     <div
@@ -73,6 +75,30 @@ export function CaptureSuccessPanel({
     >
       {/* Guia de triaje 4-tier (R8, R9) */}
       <PostTriageActionGuide outcome={outcome} />
+
+      {/* Aviso educativo y accion directa si fallo el fallback de IA en la nube */}
+      {isOfflineFallback && (
+        <div className="flex flex-col gap-2.5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            <Settings2 className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-amber-950">
+                Servidor de IA no disponible (Triaje local de emergencia)
+              </h3>
+              <p className="mt-0.5 text-xs text-amber-900 leading-relaxed">
+                Los servidores públicos no respondieron y se generó un triaje de emergencia. Para obtener informes detallados con IA sin depender de servidores compartidos, conecta tu propia clave API.
+              </p>
+            </div>
+          </div>
+          <a
+            href="/settings?reason=fallback_failed"
+            className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-800 active:scale-[0.98] transition-all"
+          >
+            <Key className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Configurar mi propia API (BYOK) para continuar</span>
+          </a>
+        </div>
+      )}
 
       {/* Resumen del analisis AI */}
       <div className="flex flex-col gap-3 rounded-2xl border border-border-default bg-gradient-to-br from-surface-1 to-surface-2 p-5 shadow-sm">

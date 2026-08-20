@@ -148,7 +148,7 @@ export function CameraViewfinder({
         className="flex h-full min-h-[60vh] w-full flex-1 items-center justify-center rounded-2xl border border-status-critical-border bg-surface-1 p-4 shadow-lg"
         aria-label="Cámara no disponible"
       >
-        <p className="px-4 text-center text-sm font-medium text-status-critical-fg">{error}</p>
+        <p className="px-4 text-center text-sm font-medium text-status-critical-border">{error}</p>
       </section>
     );
   }

@@ -87,21 +87,37 @@ export function useDeviceOrientation(): UseDeviceOrientationReturn {
       setOrientation(next);
     }
 
-    // iOS 13+ requiere solicitud explicita de permiso
+    // iOS 13+ requiere solicitud explicita de permiso tras un gesto del usuario
     const requestPermission = (
       window.DeviceOrientationEvent as unknown as {
         requestPermission?: () => Promise<'granted' | 'denied'>;
       }
     ).requestPermission;
 
+    const handleFirstGesture = async () => {
+      if (typeof requestPermission === 'function') {
+        try {
+          const res = await requestPermission();
+          if (res === 'granted') {
+            window.addEventListener('deviceorientation', handle);
+          }
+        } catch {
+          // Permiso denegado o no disponible
+        }
+      }
+    };
+
     if (typeof requestPermission === 'function') {
-      // No solicitamos permiso automaticamente; el caller debe hacerlo si quiere
+      window.addEventListener('click', handleFirstGesture, { once: true });
+      window.addEventListener('touchstart', handleFirstGesture, { once: true });
       window.addEventListener('deviceorientation', handle);
     } else {
       window.addEventListener('deviceorientation', handle);
     }
 
     return () => {
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
       window.removeEventListener('deviceorientation', handle);
     };
   }, [supported]);

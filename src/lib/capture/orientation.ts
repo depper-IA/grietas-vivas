@@ -12,6 +12,30 @@ type OrientationData = CaptureMetadata['orientation'];
 /** Maximum time (ms) to wait for an orientation reading. */
 const SAMPLING_WINDOW_MS = 500;
 
+let cachedOrientation: OrientationData = {
+  alpha: null,
+  beta: null,
+  gamma: null,
+  available: false,
+};
+
+if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
+  window.addEventListener(
+    'deviceorientation',
+    (e: DeviceOrientationEvent) => {
+      if (e.alpha !== null || e.beta !== null || e.gamma !== null) {
+        cachedOrientation = {
+          alpha: e.alpha ?? null,
+          beta: e.beta ?? null,
+          gamma: e.gamma ?? null,
+          available: true,
+        };
+      }
+    },
+    { passive: true }
+  );
+}
+
 /**
  * Get the current device orientation from the DeviceOrientation API.
  *
@@ -27,6 +51,11 @@ export async function getDeviceOrientation(): Promise<OrientationData> {
       gamma: null,
       available: false,
     };
+  }
+
+  // Si ya tenemos una lectura reciente del sensor, retornarla de inmediato
+  if (cachedOrientation.available) {
+    return { ...cachedOrientation };
   }
 
   return new Promise<OrientationData>((resolve) => {

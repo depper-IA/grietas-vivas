@@ -182,7 +182,7 @@ describe('DualCaptureFlow', () => {
       // P3: Crecimiento
       fireEvent.click(screen.getByText(/Sí, es nueva o creció/i));
       // P4: Escala
-      fireEvent.click(screen.getByText(/Sí, una moneda/i));
+      fireEvent.click(screen.getByText(/Sí, mi mano/i));
 
       expect(screen.getByText('3 / 5')).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: /Patrón de la grieta/i })).toBeInTheDocument();
