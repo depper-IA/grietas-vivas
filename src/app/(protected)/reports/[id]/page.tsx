@@ -157,6 +157,49 @@ export default function ReportDetailPage() {
     }
   };
 
+  const loadFromCache = useCallback(async () => {
+    try {
+      const capture = await getCapture(reportId);
+      if (!capture || !capture.analysisResult) {
+        setPageState('not_found');
+        return;
+      }
+
+      const detail: ReportDetail = {
+        id: capture.id,
+        riskLevel: capture.analysisResult.riskLevel,
+        analysisText: capture.analysisResult.description,
+        analysisConfidence: capture.analysisResult.confidence,
+        analysisProvider: capture.analysisResult.provider,
+        createdAt: capture.createdAt,
+        gpsLatitude: capture.metadata.gps.latitude,
+        gpsLongitude: capture.metadata.gps.longitude,
+        gpsAccuracy: capture.metadata.gps.accuracy,
+        gpsReliable: capture.metadata.gps.reliable,
+        sensorMetadata: capture.metadata.orientation as unknown as Record<string, unknown>,
+        serverTimestamp: capture.metadata.timestamp.server,
+        localTimestamp: capture.metadata.timestamp.local,
+        timestampVerified: capture.metadata.timestamp.verified,
+        imageStoragePath: null,
+        pdfStoragePath: null,
+        integrityHash: null,
+        status: 'pending',
+        imageBlob: capture.imageBlob,
+      };
+
+      // Create object URL for cached image
+      if (capture.imageBlob) {
+        setImageUrl(URL.createObjectURL(capture.imageBlob));
+      }
+
+      setReport(detail);
+      setIsOffline(true);
+      setPageState('loaded');
+    } catch {
+      setPageState('not_found');
+    }
+  }, [reportId]);
+
   const fetchReport = useCallback(async () => {
     setPageState('loading');
     const online = navigator.onLine;
@@ -256,50 +299,7 @@ export default function ReportDetailPage() {
     } else {
       await loadFromCache();
     }
-  }, [reportId]);
-
-  const loadFromCache = async () => {
-    try {
-      const capture = await getCapture(reportId);
-      if (!capture || !capture.analysisResult) {
-        setPageState('not_found');
-        return;
-      }
-
-      const detail: ReportDetail = {
-        id: capture.id,
-        riskLevel: capture.analysisResult.riskLevel,
-        analysisText: capture.analysisResult.description,
-        analysisConfidence: capture.analysisResult.confidence,
-        analysisProvider: capture.analysisResult.provider,
-        createdAt: capture.createdAt,
-        gpsLatitude: capture.metadata.gps.latitude,
-        gpsLongitude: capture.metadata.gps.longitude,
-        gpsAccuracy: capture.metadata.gps.accuracy,
-        gpsReliable: capture.metadata.gps.reliable,
-        sensorMetadata: capture.metadata.orientation as unknown as Record<string, unknown>,
-        serverTimestamp: capture.metadata.timestamp.server,
-        localTimestamp: capture.metadata.timestamp.local,
-        timestampVerified: capture.metadata.timestamp.verified,
-        imageStoragePath: null,
-        pdfStoragePath: null,
-        integrityHash: null,
-        status: 'pending',
-        imageBlob: capture.imageBlob,
-      };
-
-      // Create object URL for cached image
-      if (capture.imageBlob) {
-        setImageUrl(URL.createObjectURL(capture.imageBlob));
-      }
-
-      setReport(detail);
-      setIsOffline(true);
-      setPageState('loaded');
-    } catch {
-      setPageState('not_found');
-    }
-  };
+  }, [reportId, loadFromCache]);
 
   const handleGeneratePdf = async () => {
     if (!report) return;
@@ -561,6 +561,7 @@ export default function ReportDetailPage() {
                   aria-label="Ampliar foto de detalle"
                   className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default shadow-md focus:outline-none focus:ring-2 focus:ring-brand-accent text-left"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- imageUrl puede ser blob: (cache offline) o URL firmada de Supabase, no optimizable por next/image */}
                   <img
                     src={imageUrl}
                     alt="Foto de detalle de la grieta capturada a 30-50 cm"
@@ -588,6 +589,7 @@ export default function ReportDetailPage() {
                   aria-label="Ampliar foto de contexto"
                   className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default shadow-md focus:outline-none focus:ring-2 focus:ring-brand-accent text-left"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- contextImageUrl puede ser blob: (cache offline) o URL firmada de Supabase, no optimizable por next/image */}
                   <img
                     src={contextImageUrl}
                     alt="Foto de contexto de la grieta capturada a 2 metros"
@@ -615,6 +617,7 @@ export default function ReportDetailPage() {
               aria-label="Ampliar fotografía de la grieta"
               className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border-default shadow-md focus:outline-none focus:ring-2 focus:ring-brand-accent block text-left"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element -- imageUrl puede ser blob: (cache offline) o URL firmada de Supabase, no optimizable por next/image */}
               <img
                 src={imageUrl}
                 alt="Fotografía capturada de la grieta para análisis estructural"

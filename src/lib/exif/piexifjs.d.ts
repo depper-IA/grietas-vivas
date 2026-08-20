@@ -20,6 +20,8 @@ declare module 'piexifjs' {
 
   const version: string;
 
+  const piexif: { remove: typeof remove; load: typeof load; dump: typeof dump; insert: typeof insert; version: string };
+
   export { remove, load, dump, insert, version };
-  export default { remove, load, dump, insert, version };
+  export default piexif;
 }

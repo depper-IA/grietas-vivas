@@ -197,6 +197,7 @@ export function ImageZoomModal({
         onMouseLeave={handleMouseUp}
         onDoubleClick={handleDoubleClick}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element -- pan/zoom requiere tamaño intrínseco de la imagen; incompatible con next/image fill. Fuente puede ser blob: (cache offline) o URL firmada de Supabase. */}
         <img
           src={activeUrl}
           alt={alt}

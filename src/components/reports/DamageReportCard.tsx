@@ -167,13 +167,16 @@ export function DamageReportCard({
         {loading || !imageUrl ? (
           <SkeletonPlaceholder />
         ) : (
-          <img
-            src={imageUrl}
-            alt={imageAlt}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- imageUrl puede ser blob: (cache offline) o URL firmada de Supabase, no optimizable por next/image */}
+            <img
+              src={imageUrl}
+              alt={imageAlt}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+          </>
         )}
 
         {/* Badge de clasificacion superpuesto (esquina superior izquierda) */}
