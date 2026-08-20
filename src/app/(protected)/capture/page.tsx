@@ -37,6 +37,7 @@ import {
   DEFAULT_STRUCTURAL_CONTEXT,
 } from '@/components/capture/DualCaptureFlow';
 import { CaptureSuccessPanel } from './CaptureSuccessPanel';
+import { AnalysisLoadingScreen } from '@/components/capture/AnalysisLoadingScreen';
 import { CircleX, RefreshCw } from 'lucide-react';
 import { arrayBufferToBase64 } from './helpers';
 
@@ -447,22 +448,7 @@ export default function CapturePage() {
       <main className="flex flex-1 flex-col items-stretch justify-start gap-4">
         {/* Vista de análisis en curso */}
         {(isAnalyzing || isRunningAnalysis) && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="my-auto flex flex-col items-center justify-center rounded-2xl border border-border-default bg-surface-1 p-8 text-center shadow-lg"
-          >
-            <RefreshCw
-              className="mb-4 h-10 w-10 animate-spin text-brand-accent"
-              aria-hidden="true"
-            />
-            <h2 className="text-base font-bold text-text-primary sm:text-lg">
-              Analizando daño estructural con IA
-            </h2>
-            <p className="mt-1.5 max-w-sm text-xs text-text-secondary leading-relaxed sm:text-sm">
-              Procesando fotos, señales de peligro y contexto con la matriz oficial NSR-10 / FEMA 306...
-            </p>
-          </div>
+          <AnalysisLoadingScreen />
         )}
 
         {/* Vista de éxito: reporte sincronizado o resultado de emergencia */}
