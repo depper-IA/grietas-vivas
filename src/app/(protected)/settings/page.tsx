@@ -158,6 +158,17 @@ const PROVIDER_ORDER: AIProvider[] = [
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'fallback' | 'byok'>('fallback');
+  const [isFallbackRedirect, setIsFallbackRedirect] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reason') === 'fallback_failed') {
+        setIsFallbackRedirect(true);
+        setActiveTab('byok');
+      }
+    }
+  }, []);
   const [configuredProvider, setConfiguredProvider] = useState<AIProvider | null>(null);
   const [configuredModel, setConfiguredModel] = useState<string | null>(null);
 
@@ -313,6 +324,25 @@ export default function SettingsPage() {
           Administra los proveedores de visión para triaje de grietas sísmicas.
         </p>
       </header>
+
+      {/* Banner de redirección cuando fallan los proveedores compartidos */}
+      {isFallbackRedirect && (
+        <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 sm:p-5 text-amber-950 shadow-md">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-200 text-amber-900 font-bold">
+              <Key className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-amber-950">
+                Conecta tu propia clave de IA para continuar sin límites
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-amber-900 leading-relaxed">
+                Los servidores compartidos alcanzaron su límite de cuota o no respondieron. Ingresa una clave API gratuita (ej. <strong>Google Gemini</strong> o <strong>OpenRouter</strong>) para que tus fotos se analicen directamente desde tu navegador con máxima velocidad.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Selector de modo principal estilo OpenDesign */}
       <div className="flex rounded-xl bg-surface-1 p-1.5 border border-border-default shadow-sm">
@@ -682,7 +712,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={handleClear}
-                    className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-status-critical-border bg-surface-2 px-4 py-3 text-sm font-medium text-status-critical-fg hover:bg-status-critical/10 active:scale-[0.98] transition-all"
+                    className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-status-critical-border bg-surface-2 px-4 py-3 text-sm font-medium text-status-critical-border hover:bg-status-critical/10 active:scale-[0.98] transition-all"
                   >
                     <Trash2 className="h-4 w-4 shrink-0" />
                     <span>Restablecer Servidor</span>

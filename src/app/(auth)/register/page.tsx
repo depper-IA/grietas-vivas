@@ -177,7 +177,7 @@ export default function RegisterPage() {
               placeholder="tu@correo.com"
             />
             {errors.email && (
-              <p id="email-error" className="mt-1 text-xs text-status-critical-fg">
+              <p id="email-error" className="mt-1 text-xs text-status-critical-border font-medium">
                 {errors.email}
               </p>
             )}
@@ -203,7 +203,7 @@ export default function RegisterPage() {
               placeholder="••••••••"
             />
             {errors.password && (
-              <p id="password-error" className="mt-1 text-xs text-status-critical-fg">
+              <p id="password-error" className="mt-1 text-xs text-status-critical-border font-medium">
                 {errors.password}
               </p>
             )}
@@ -236,7 +236,7 @@ export default function RegisterPage() {
             {errors.confirmPassword && (
               <p
                 id="confirm-password-error"
-                className="mt-1 text-xs text-status-critical-fg"
+                className="mt-1 text-xs text-status-critical-border font-medium"
               >
                 {errors.confirmPassword}
               </p>

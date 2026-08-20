@@ -39,7 +39,7 @@ const STATE_CONFIG: Record<ConnectivityState, StateConfig> = {
     label: 'Sin conexión',
     Icon: WifiOff,
     classes: 'border-status-critical-border bg-surface-1/90 text-text-primary backdrop-blur-md',
-    iconClasses: 'text-status-critical-fg',
+    iconClasses: 'text-status-critical-bg',
     srText: 'Estado de red: sin conexión (modo local offline)',
   },
   syncing: {

@@ -137,7 +137,7 @@ function ResetPasswordContent() {
           <div
             role="alert"
             aria-live="polite"
-            className="mt-4 rounded-xl border border-status-critical-border bg-status-critical/20 p-3 text-sm text-status-critical-fg"
+            className="mt-4 rounded-xl border border-status-critical-border bg-status-critical/10 p-3 text-sm text-status-critical-border font-medium"
           >
             <p>{verifyError}</p>
           </div>
@@ -168,7 +168,7 @@ function ResetPasswordContent() {
         <div
           role="alert"
           aria-live="polite"
-          className="mb-4 rounded-xl border border-status-critical-border bg-status-critical/20 p-3 text-sm text-status-critical-fg"
+          className="mb-4 rounded-xl border border-status-critical-border bg-status-critical/10 p-3 text-sm text-status-critical-border font-medium"
         >
           <p>{serverError}</p>
         </div>
@@ -196,7 +196,7 @@ function ResetPasswordContent() {
               placeholder="••••••••"
             />
             {errors.password && (
-              <p id="password-error" className="mt-1 text-xs text-status-critical-fg">
+              <p id="password-error" className="mt-1 text-xs text-status-critical-border font-medium">
                 {errors.password}
               </p>
             )}
@@ -227,7 +227,7 @@ function ResetPasswordContent() {
             {errors.confirmPassword && (
               <p
                 id="confirm-password-error"
-                className="mt-1 text-xs text-status-critical-fg"
+                className="mt-1 text-xs text-status-critical-border font-medium"
               >
                 {errors.confirmPassword}
               </p>

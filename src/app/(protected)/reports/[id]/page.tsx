@@ -39,13 +39,16 @@ import {
   FileText,
   Maximize2,
   Trash2,
+  Sparkles,
 } from 'lucide-react';
 import { FormattedAnalysisText } from '@/components/reports/FormattedAnalysisText';
 import { ImageZoomModal } from '@/components/ui/ImageZoomModal';
 import { ExpertCalibrationSection } from '@/components/reports/ExpertCalibrationSection';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
-import { getCapture, deleteCapture } from '@/lib/db/localDb';
-import { generateReport, deleteReport, type ReportOutput } from '@/app/actions/report';
+import { getCapture, deleteCapture, updateCapture } from '@/lib/db/localDb';
+import { generateReport, deleteReport, updateReportAnalysis, type ReportOutput } from '@/app/actions/report';
+import { analyzeWithFallback } from '@/app/actions/analysis';
+import type { StructuralContext } from '@/lib/ai/structuralPrompt';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { PostTriageActionGuide } from '@/components/reports/PostTriageActionGuide';
 import { MotionButton } from '@/components/ui/MotionButton';
@@ -86,10 +89,28 @@ interface ReportDetail {
   dangerSignals?: DangerSignals | null;
   contextImageStoragePath?: string | null;
   inspectionReportId?: string | null;
+  imageBlob?: Blob | null;
+  contextImageBlob?: Blob | null;
 }
 
 type PageState = 'loading' | 'loaded' | 'not_found' | 'error';
 type PdfState = 'idle' | 'generating' | 'ready' | 'error';
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+async function urlToBase64(url: string): Promise<string> {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return blobToBase64(blob);
+}
 
 export default function ReportDetailPage() {
   const params = useParams();
@@ -113,14 +134,23 @@ export default function ReportDetailPage() {
     setIsDeleting(true);
     setDeleteError('');
     try {
-      const res = await deleteReport({ reportId });
-      if (res.success) {
+      // 1. Eliminar de IndexedDB local
+      try {
         await deleteCapture(reportId);
-        router.push('/reports');
-      } else {
-        setDeleteError(res.error?.message || 'No se pudo eliminar el reporte.');
-        setIsDeleting(false);
+      } catch {
+        // Continuar
       }
+
+      // 2. Si hay red y es reporte remoto, intentar borrar de Supabase
+      if (navigator.onLine && !reportId.startsWith('local-')) {
+        try {
+          await deleteReport({ reportId });
+        } catch {
+          // Degradación graceful
+        }
+      }
+
+      router.push('/reports');
     } catch {
       setDeleteError('Ocurrió un error inesperado al eliminar el reporte.');
       setIsDeleting(false);
@@ -255,6 +285,7 @@ export default function ReportDetailPage() {
         pdfStoragePath: null,
         integrityHash: null,
         status: 'pending',
+        imageBlob: capture.imageBlob,
       };
 
       // Create object URL for cached image
@@ -291,6 +322,88 @@ export default function ReportDetailPage() {
     } else {
       setPdfError(result.error.message);
       setPdfState('error');
+    }
+  };
+
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [reanalyzeError, setReanalyzeError] = useState<string | null>(null);
+
+  const handleReanalyzeWithAI = async () => {
+    if (!report || isReanalyzing) return;
+    setIsReanalyzing(true);
+    setReanalyzeError(null);
+
+    try {
+      let imageBase64 = '';
+      if (report.imageBlob) {
+        imageBase64 = await blobToBase64(report.imageBlob);
+      } else if (imageUrl) {
+        imageBase64 = await urlToBase64(imageUrl);
+      }
+
+      if (!imageBase64) {
+        throw new Error('No se pudo obtener la imagen para el análisis.');
+      }
+
+      let contextImageBase64: string | undefined;
+      if (report.contextImageBlob) {
+        contextImageBase64 = await blobToBase64(report.contextImageBlob);
+      } else if (contextImageUrl) {
+        contextImageBase64 = await urlToBase64(contextImageUrl);
+      }
+
+      const structCtx = (report.sensorMetadata?.structuralContext as StructuralContext) ?? undefined;
+
+      const aiResult = await analyzeWithFallback({
+        imageBase64,
+        contextImageBase64,
+        structuralContext: structCtx,
+      });
+
+      if (!aiResult.success) {
+        throw new Error(aiResult.error.error.message || 'El análisis con IA no pudo completarse.');
+      }
+
+      const { riskLevel, description, confidence, provider } = aiResult.data;
+
+      // Update local state
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              riskLevel: riskLevel as RiskLevel,
+              analysisText: description,
+              analysisConfidence: confidence,
+              analysisProvider: provider || 'ai',
+            }
+          : prev
+      );
+
+      // Update IndexedDB if local capture
+      try {
+        await updateCapture(report.id, {
+          analysisResult: aiResult.data,
+        });
+      } catch {
+        // Ignored if only in cloud
+      }
+
+      // Update Supabase if cloud report
+      if (report.id && !report.id.startsWith('local-')) {
+        await updateReportAnalysis({
+          reportId: report.id,
+          analysisResult: {
+            riskLevel,
+            description,
+            confidence,
+            provider: provider || 'ai',
+          },
+        });
+      }
+    } catch (err) {
+      setReanalyzeError(err instanceof Error ? err.message : 'Error al re-analizar con IA.');
+    } finally {
+      setIsReanalyzing(false);
     }
   };
 
@@ -366,7 +479,7 @@ export default function ReportDetailPage() {
           className="rounded-2xl border border-status-critical-border bg-surface-1 p-6 text-center shadow-lg"
           role="alert"
         >
-          <p className="text-sm font-medium text-status-critical-fg">
+          <p className="text-sm font-medium text-status-critical-border">
             Ocurrió un error al cargar este reporte.
           </p>
           <button
@@ -616,7 +729,7 @@ export default function ReportDetailPage() {
                 >
                   <span
                     aria-hidden="true"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-status-critical-border bg-status-critical/20 text-status-critical-fg"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-status-critical-border bg-status-critical/20 text-status-critical-border"
                   >
                     <SignalIcon className="h-4 w-4" aria-hidden="true" />
                   </span>
@@ -637,12 +750,31 @@ export default function ReportDetailPage() {
 
       {/* Analysis */}
       <section aria-labelledby="analysis-heading" className="mb-6">
-        <h2
-          id="analysis-heading"
-          className="text-lg font-bold text-text-primary tracking-tight"
-        >
-          Análisis
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2
+            id="analysis-heading"
+            className="text-lg font-bold text-text-primary tracking-tight"
+          >
+            Análisis
+          </h2>
+          <button
+            type="button"
+            onClick={handleReanalyzeWithAI}
+            disabled={isReanalyzing}
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-brand-accent/40 bg-surface-1 px-3.5 py-1.5 text-xs font-semibold text-brand-accent hover:bg-surface-2 active:scale-95 transition-all disabled:opacity-50"
+            aria-label="Re-analizar reporte con IA"
+          >
+            <Sparkles className={`h-3.5 w-3.5 ${isReanalyzing ? 'animate-spin' : ''}`} />
+            <span>{isReanalyzing ? 'Analizando con IA...' : 'Re-analizar con IA'}</span>
+          </button>
+        </div>
+
+        {reanalyzeError && (
+          <p className="mt-2 text-xs font-medium text-status-critical-border bg-status-critical/10 p-2.5 rounded-xl border border-status-critical-border">
+            {reanalyzeError}
+          </p>
+        )}
+
         <div className="mt-3 rounded-2xl border border-border-default bg-gradient-to-br from-surface-1 to-surface-2 p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3 pb-3 border-b border-border-subtle">
             <SeverityBadge level={severity} />
@@ -857,7 +989,7 @@ export default function ReportDetailPage() {
 
           {pdfState === 'error' && (
             <div className="space-y-3">
-              <p className="text-sm font-medium text-status-critical-fg">{pdfError}</p>
+              <p className="text-sm font-medium text-status-critical-border">{pdfError}</p>
               <button
                 onClick={handleGeneratePdf}
                 className="w-full min-h-[48px] rounded-xl border border-status-critical-border bg-status-critical px-5 py-2.5 text-sm font-semibold text-status-critical-fg transition-opacity duration-150 hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-status-critical-border"
@@ -909,14 +1041,14 @@ export default function ReportDetailPage() {
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-status-critical-border/40 bg-surface-1 px-4 py-2.5 text-xs font-semibold text-status-critical-fg hover:bg-status-critical/10 active:scale-[0.98] transition-all"
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-status-critical-border/40 bg-surface-1 px-4 py-2.5 text-xs font-semibold text-status-critical-border hover:bg-status-critical/10 active:scale-[0.98] transition-all"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               <span>Eliminar este reporte</span>
             </button>
           ) : (
             <div className="rounded-2xl border border-status-critical-border bg-surface-1 p-4 sm:p-5 shadow-sm space-y-3">
-              <h3 className="text-sm font-bold text-status-critical-fg flex items-center gap-2">
+              <h3 className="text-sm font-bold text-status-critical-border flex items-center gap-2">
                 <Trash2 className="h-4 w-4 shrink-0" />
                 <span>¿Confirmas que deseas eliminar este reporte?</span>
               </h3>
@@ -924,7 +1056,7 @@ export default function ReportDetailPage() {
                 Esta acción eliminará permanentemente los datos y las fotografías asociadas de este reporte en la nube y en tu dispositivo. Esta acción no se puede deshacer.
               </p>
               {deleteError && (
-                <p className="text-xs text-status-critical-fg font-medium">{deleteError}</p>
+                <p className="text-xs text-status-critical-border font-medium">{deleteError}</p>
               )}
               <div className="flex gap-2 justify-end pt-1">
                 <button

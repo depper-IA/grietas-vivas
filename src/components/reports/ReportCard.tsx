@@ -104,7 +104,7 @@ export function ReportCard({ report, onDelete }: ReportCardProps) {
           }}
           aria-label={`Eliminar reporte del ${report.createdAt}`}
           title="Eliminar reporte"
-          className="absolute top-2.5 right-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-1/90 text-text-muted hover:text-status-critical-fg hover:bg-surface-2 border border-border-default opacity-80 group-hover:opacity-100 transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-status-critical-border"
+          className="absolute top-2.5 right-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-1/90 text-text-muted hover:text-status-critical hover:bg-surface-2 border border-border-default opacity-80 group-hover:opacity-100 transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-status-critical-border"
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </button>

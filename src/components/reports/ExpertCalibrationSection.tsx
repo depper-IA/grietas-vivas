@@ -246,7 +246,7 @@ export function ExpertCalibrationSection({
             </div>
 
             {errorMsg && (
-              <p className="text-xs text-status-critical-fg font-medium">{errorMsg}</p>
+              <p className="text-xs text-status-critical-border font-medium">{errorMsg}</p>
             )}
 
             <div className="flex justify-end gap-2 pt-1">

@@ -82,7 +82,7 @@ const STATE_PRESENTATION: Record<SyncState, StatePresentation> = {
   error: {
     label: 'Error de sincronización',
     ariaLabel: () => 'Error de sincronizacion',
-    toneClasses: 'text-status-critical-fg',
+    toneClasses: 'text-status-critical-border',
     Icon: AlertCircle,
     animate: false,
   },

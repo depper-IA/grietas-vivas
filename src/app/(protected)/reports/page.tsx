@@ -49,19 +49,26 @@ export default function ReportsPage() {
     setIsDeleting(true);
     setDeleteError('');
     try {
-      const res = await deleteReport({ reportId: deletingId });
-      if (res.success) {
+      // 1. Eliminar siempre de IndexedDB local
+      try {
         await deleteCapture(deletingId);
-        setReports((prev) => prev.filter((r) => r.id !== deletingId));
-        setDeletingId(null);
-      } else {
-        setDeleteError(res.error?.message || 'No se pudo eliminar el reporte.');
+      } catch {
+        // Continuar
       }
-    } catch {
-      // Si falla por red u offline, borrar de localDb de todas formas
-      await deleteCapture(deletingId);
+
+      // 2. Si hay red y es un reporte sincronizado, eliminar de Supabase
+      if (navigator.onLine && !deletingId.startsWith('local-')) {
+        try {
+          await deleteReport({ reportId: deletingId });
+        } catch {
+          // Error en la nube no bloquea la eliminación visual local
+        }
+      }
+
       setReports((prev) => prev.filter((r) => r.id !== deletingId));
       setDeletingId(null);
+    } catch {
+      setDeleteError('No se pudo eliminar el reporte.');
     } finally {
       setIsDeleting(false);
     }
@@ -226,7 +233,7 @@ export default function ReportsPage() {
           className="rounded-2xl border border-status-critical-border bg-surface-2 p-5 text-center shadow-md"
           role="alert"
         >
-          <p className="text-sm font-medium text-status-critical-fg">{errorMessage}</p>
+          <p className="text-sm font-medium text-status-critical-border">{errorMessage}</p>
           <button
             onClick={fetchReports}
             className="mt-4 min-h-[44px] rounded-xl border border-status-critical-border bg-status-critical px-5 py-2.5 text-sm font-semibold text-status-critical-fg transition-opacity duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] hover:opacity-90 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-status-critical-border"
@@ -271,7 +278,7 @@ export default function ReportsPage() {
         >
           <div className="w-full max-w-sm rounded-2xl border border-status-critical-border bg-surface-1 p-5 shadow-2xl space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-critical/20 text-status-critical-fg">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-status-critical/20 text-status-critical-border">
                 <Trash2 className="h-5 w-5" aria-hidden="true" />
               </div>
               <button
@@ -294,7 +301,7 @@ export default function ReportsPage() {
             </div>
 
             {deleteError && (
-              <p className="text-xs text-status-critical-fg font-medium">{deleteError}</p>
+              <p className="text-xs text-status-critical-border font-medium">{deleteError}</p>
             )}
 
             <div className="flex gap-2.5 justify-end pt-2">

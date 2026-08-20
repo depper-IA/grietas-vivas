@@ -2,13 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Camera, FileText, Settings2 } from 'lucide-react';
+import { BookOpen, Camera, FileText, Settings2 } from 'lucide-react';
 
 const NAV_ITEMS = [
   {
     href: '/capture',
     label: 'Capturar',
     Icon: Camera,
+  },
+  {
+    href: '/reconocimiento',
+    label: 'Reconocimiento',
+    Icon: BookOpen,
   },
   {
     href: '/reports',
