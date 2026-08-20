@@ -200,7 +200,8 @@ export default function CapturePage() {
         setFinalResult(offlineResult);
         setTriageOutcome(outcome);
         setIsRunningAnalysis(false);
-        setSyncStatus('synced');
+        // Still attempt sync — will queue for later if truly offline
+        await syncToBackend(offlineResult, activeCapture, ctxBlob, pat, signals);
         return;
       }
 
@@ -335,7 +336,7 @@ export default function CapturePage() {
           setFinalResult(emergencyResult);
           setTriageOutcome(outcome);
           setIsRunningAnalysis(false);
-          setSyncStatus('synced');
+          await syncToBackend(emergencyResult, activeCapture, ctxBlob, pat, signals);
         }
       } catch {
         // En caso de cualquier excepción no capturada, motor offline de emergencia
@@ -344,7 +345,7 @@ export default function CapturePage() {
         setFinalResult(emergencyResult);
         setTriageOutcome(outcome);
         setIsRunningAnalysis(false);
-        setSyncStatus('synced');
+        await syncToBackend(emergencyResult, activeCapture, ctxBlob, pat, signals);
       }
     },
     [analyze, syncToBackend]

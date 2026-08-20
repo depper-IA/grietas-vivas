@@ -201,7 +201,8 @@ export async function generateReport(data: {
         success: false,
         error: {
           code: 'REPORT_GENERATION_FAILED',
-          message: 'No se pudo generar el reporte. Por favor intenta más tarde.',
+          message: errorBody?.error?.message
+            || `No se pudo generar el reporte (HTTP ${response.status}). Por favor intenta más tarde.`,
         },
       };
     }
