@@ -13,6 +13,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { timingSafeEqualString } from "../_shared/crypto.ts";
 import type {
   ReportInput,
   ReportOutput,
@@ -20,6 +21,7 @@ import type {
   CaptureMetadata,
   AnalysisResult,
 } from "./types.ts";
+import { buildManifest } from "./types.ts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -302,30 +304,31 @@ function buildRawPdf(textContent: string): Uint8Array {
 }
 
 /**
- * Two-pass PDF generation:
- * 1. Generate PDF with a placeholder hash
- * 2. Compute SHA-256 of the PDF binary
- * 3. Regenerate PDF with the real hash embedded
+ * Single-pass PDF generation with canonical-manifest integrity hash.
  *
- * Note: The integrity hash is computed over the FINAL PDF content.
- * Since the hash is part of the content, we use a fixed-length placeholder
- * and replace it in the second pass. The final hash covers the PDF that
- * contains the hash itself — this is a display convenience, not a
- * cryptographic self-reference. The authoritative hash is stored in the DB.
+ * Why single-pass now: the legacy two-pass approach hashed a placeholder
+ * PDF and stored that hash, which did not match the final uploaded PDF
+ * (the final PDF contained the real hash, changing its bytes). The fix
+ * is to hash a canonical `ReportManifest` JSON instead — bit-exact
+ * reproducible by any verifier who has the inputs and storage path.
+ *
+ * The hash embedded in the PDF footer is purely for human display. The
+ * authoritative hash stored in `reports.integrity_hash` is `v1:<hex>`
+ * where `<hex>` is SHA-256 of the canonical manifest bytes.
  */
 async function generatePdfWithHash(
   reportId: string,
   input: ReportInput,
-  serverTimestamp: string
+  serverTimestamp: string,
+  pdfStoragePath: string
 ): Promise<{ pdfBytes: Uint8Array; integrityHash: string }> {
-  // Pass 1: Generate PDF without the hash (use placeholder)
-  const placeholderHash = "0".repeat(64);
-  const pdfWithPlaceholder = buildPdfContent(reportId, input, serverTimestamp, placeholderHash);
+  // 1. Build the canonical manifest and hash its bytes
+  const manifest = buildManifest(input, serverTimestamp, pdfStoragePath);
+  const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
+  const manifestHash = await computeSHA256(manifestBytes);
+  const integrityHash = `v1:${manifestHash}`;
 
-  // Compute SHA-256 over the PDF binary content
-  const integrityHash = await computeSHA256(pdfWithPlaceholder);
-
-  // Pass 2: Regenerate PDF with the actual hash embedded in footer
+  // 2. Single-pass PDF build with the authoritative hash embedded in footer
   const finalPdf = buildPdfContent(reportId, input, serverTimestamp, integrityHash);
 
   return { pdfBytes: finalPdf, integrityHash };
@@ -351,7 +354,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const token = authHeader.replace("Bearer ", "");
-  if (token !== serviceRoleKey) {
+  const isAuthorized = await timingSafeEqualString(token, serviceRoleKey);
+  if (!isAuthorized) {
     return errorResponse("UNAUTHORIZED", "Invalid authorization token", 401);
   }
 
@@ -424,11 +428,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return errorResponse("TIMEOUT", "Report generation exceeded 30 seconds", 408);
     }
 
-    // Generate PDF with integrity hash
+    // Generate PDF with integrity hash (manifest approach)
+    // pdfStoragePath is computed below; we use the same convention here so
+    // the manifest hash matches the actual storage path.
+    const pdfStoragePath = `${input.userId}/${reportId}.pdf`;
     const { pdfBytes, integrityHash } = await generatePdfWithHash(
       reportId,
       input,
-      serverTimestamp
+      serverTimestamp,
+      pdfStoragePath
     );
 
     // Check timeout
@@ -438,7 +446,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // Upload PDF to storage
-    const pdfStoragePath = `${input.userId}/${reportId}.pdf`;
     let uploadSuccess = false;
     let uploadAttempts = 0;
     const maxUploadAttempts = 2; // Initial + 1 retry per Requirement 8.6

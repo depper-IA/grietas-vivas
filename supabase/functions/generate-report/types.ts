@@ -79,3 +79,43 @@ export interface ErrorResponse {
     fields?: string[];
   };
 }
+
+/**
+ * Canonical manifest hashed for the integrity_hash column.
+ *
+ * Key order is intentional and frozen. Any reordering of these properties
+ * breaks byte-exact reproducibility of the SHA-256 hash, which is the
+ * whole point of the manifest scheme. Do NOT use object spread to build
+ * the manifest — always construct it via `buildManifest()`.
+ */
+export interface ReportManifest {
+  captureId: string;
+  userId: string;
+  metadata: CaptureMetadata;
+  analysis: AnalysisResult;
+  generatedAt: string;
+  pdfStoragePath: string;
+}
+
+/**
+ * Builds the canonical `ReportManifest` for hashing.
+ *
+ * The output is byte-exact reproducible: same logical inputs always
+ * serialize to the same JSON string. This is what makes the integrity
+ * hash self-consistent — verifiers can reconstruct the manifest from
+ * inputs + storage path and hash it again to validate.
+ */
+export function buildManifest(
+  input: ReportInput,
+  serverTimestamp: string,
+  pdfStoragePath: string,
+): ReportManifest {
+  return {
+    captureId: input.captureId,
+    userId: input.userId,
+    metadata: input.metadata,
+    analysis: input.analysis,
+    generatedAt: serverTimestamp,
+    pdfStoragePath,
+  };
+}
