@@ -50,6 +50,10 @@ __pycache__/
 .openclaw/
 .opencode/
 
+# Sensitive files (credentials / rules)
+REGLAS_IMPORTANTES.md
+generate_image_gcp.py
+
 # Dev server logs
 .dev-server.err
 .dev-server.log
