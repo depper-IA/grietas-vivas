@@ -36,6 +36,11 @@ public/swe-worker-*.js
 coverage/
 .vercel
 .env*
+
+# Python
+__pycache__/
+*.pyc
+
 # Local AI runtime state
 .atl/
 .notes/

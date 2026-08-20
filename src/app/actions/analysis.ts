@@ -82,8 +82,8 @@ export async function analyzeWithFallback(input: {
   }
 
   // Read fallback API keys from environment (server-side only)
-  const openrouterKey = process.env.OPENROUTER_API_KEY ?? '';
-  const nvidiaNimKey = process.env.NVIDIA_NIM_API_KEY ?? '';
+  const openrouterKey = process.env.OPENROUTER_API_KEY ?? process.env.OpenROUTER_API ?? '';
+  const nvidiaNimKey = process.env.NVIDIA_NIM_API_KEY ?? process.env.nvidia_api ?? '';
 
   if (!openrouterKey && !nvidiaNimKey) {
     return {
