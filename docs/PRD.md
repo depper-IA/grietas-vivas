@@ -1,8 +1,8 @@
-# PRD — SafeSpace: Earthquake Crack Triage PWA
+# PRD — Grietas Vivas: Earthquake Crack Triage PWA
 
 ## 1. Resumen Ejecutivo
 
-SafeSpace es una Progressive Web App (PWA) diseñada para triaje preliminar de grietas post-sismo en Cali, Colombia. Permite a ciudadanos documentar daños estructurales con metadatos legalmente relevantes (GPS, timestamps certificados, ángulos del dispositivo) y obtener un análisis preliminar de riesgo asistido por inteligencia artificial. Los reportes generados son inmutables y verificables mediante hash de integridad SHA-256, sirviendo como documentación de soporte para autoridades de gestión del riesgo y aseguradoras.
+Grietas Vivas es una Progressive Web App (PWA) diseñada para triaje preliminar de grietas post-sismo en Cali, Colombia. Permite a ciudadanos documentar daños estructurales con metadatos legalmente relevantes (GPS, timestamps certificados, ángulos del dispositivo) y obtener un análisis preliminar de riesgo asistido por inteligencia artificial. Los reportes generados son inmutables y verificables mediante hash de integridad SHA-256, sirviendo como documentación de soporte para autoridades de gestión del riesgo y aseguradoras.
 
 ## 2. Problema
 

@@ -101,8 +101,8 @@ const config: Config = {
           '50%': { opacity: '1' },
         },
         'ring-pulse': {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgb(29 78 216 / 0.6)' },
-          '50%': { boxShadow: '0 0 0 8px rgb(29 78 216 / 0)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgb(220 38 38 / 0.6)' },
+          '50%': { boxShadow: '0 0 0 8px rgb(220 38 38 / 0)' },
         },
       },
       animation: {

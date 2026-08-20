@@ -1,4 +1,4 @@
-# Reglas de Implementacion - SafeSpace (Earthquake Crack Triage PWA)
+# Reglas de Implementacion - Grietas Vivas (Earthquake Crack Triage PWA)
 **RESPONDE SIEMPRE EN ESPANOL**
 
 ---
@@ -82,7 +82,7 @@
 ### 3.2 Estructura de Directorios (Monorepo Unico)
 
 ```
-SafeSpace/
+GrietasVivas/
   src/
     app/              # Next.js App Router (pages, layouts, actions)
       (auth)/         # Rutas de autenticacion
@@ -335,4 +335,4 @@ Si hay errores de compilacion o tests fallidos, corregir ANTES de continuar con 
 
 ---
 
-**Ultima actualizacion:** 2026-08-18 - SafeSpace / Earthquake Crack Triage PWA / Next.js + Supabase + pnpm
+**Ultima actualizacion:** 2026-08-19 - Grietas Vivas / Earthquake Crack Triage PWA / Next.js + Supabase + pnpm

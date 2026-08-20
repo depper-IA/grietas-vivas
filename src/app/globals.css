@@ -30,8 +30,8 @@
   --text-secondary: #334155;
   --text-muted: #334155;
 
-  /* Marca — alineada al screenshot de RutaDeAyuda */
-  --brand-accent: #1d4ed8;  /* blue-700 — texto/iconos/links/outlines */
+  /* Marca — Rojo unificado institucional Grietas Vivas (#dc2626) */
+  --brand-accent: #dc2626;  /* red-600 — texto/iconos/links/outlines/foco */
   --brand-cta: #dc2626;     /* red-600 — fondo del CTA primario (texto blanco) */
 
   /* Severidad (badges): ver src/lib/ui/tokens.ts REQUIRED_SEVERITY_PAIRS */

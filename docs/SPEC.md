@@ -1,14 +1,14 @@
-# Especificación Técnica — SafeSpace v1.1
+# Especificación Técnica — Grietas Vivas v1.1
 
 ## 1. Información del Proyecto
 
 | Campo | Valor |
 |-------|-------|
-| **Nombre** | SafeSpace — Earthquake Crack Triage PWA |
+| **Nombre** | Grietas Vivas — Earthquake Crack Triage PWA |
 | **Versión** | 1.1 |
 | **URL Producción** | https://safespace-pwa.vercel.app |
 | **Backend** | https://kjkoyjcupljvqxeqvwba.supabase.co |
-| **Repositorio** | (local: o:\Compartidas\SafeSpace) |
+| **Repositorio** | (local: o:\Compartidas\Grietas Vivas) |
 | **Stack** | Next.js 14 + TypeScript + Supabase + Tailwind CSS |
 | **Tests** | 249 tests (Vitest + fast-check) |
 | **Hosting** | Vercel (frontend) + Supabase (backend + Edge Functions) |
@@ -16,7 +16,7 @@
 ## 2. Estructura del Proyecto
 
 ```
-SafeSpace/
+GrietasVivas/
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/              # Rutas de autenticación

@@ -1,8 +1,8 @@
-# Documento de Diseño — SafeSpace
+# Documento de Diseño — Grietas Vivas
 
 ## 1. Visión General de Arquitectura
 
-SafeSpace implementa una arquitectura **offline-first con sincronización eventual** usando Next.js App Router como capa de presentación y Supabase como Backend-as-a-Service completo.
+Grietas Vivas implementa una arquitectura **offline-first con sincronización eventual** usando Next.js App Router como capa de presentación y Supabase como Backend-as-a-Service completo.
 
 ### Principios de Diseño
 
@@ -245,18 +245,18 @@ Usuario toma foto
 
 ### 7.1 Origen y Filosofía
 
-SafeSpace sera embebido dentro del **proyecto principal RutaDeAyuda** (`public/design.md`), una plataforma centralizada de ayuda humanitaria post-terremoto en Colombia (M7.4 San José del Palmar, Chocó, 10-ago-2026). El screenshot de su home muestra el patrón que SafeSpace debe seguir:
+Grietas Vivas adopta una identidad visual de emergencia con **rojo de triaje forense unificado** (`#dc2626` / `red-600`) para todos los elementos de acción primaria, acentos de botones, focos interactivos y glifos de marca:
 
-- **CTAs primarios**: ROJO (`destructive #ef4444`) con texto blanco, **`rounded-full`** (pill)
-- **CTAs secundarios / outlines**: BLANCO con borde AZUL (`primary #3b82f6`), texto azul, pill
-- **Acentos / iconos**: AMARILLO (`badge-yellow #eab308`)
-- **Títulos**: AZUL (`foreground #0f172a` slate-900)
-- **Bg**: BLANCO con gradiente sutil ámbar
+- **CTAs primarios**: ROJO institucional (`brand.cta #dc2626`) con texto blanco, sombra sutil y `active:scale-[0.98]`
+- **CTAs secundarios / outlines**: Superficie neutra con borde `border-border-default` y hover/focus `border-brand-accent` (`#dc2626`), texto con acento
+- **Acentos / iconos / links**: ROJO institucional (`brand.accent #dc2626`) para estados activos y focos
+- **Títulos**: Slate oscuro (`text.primary #0f172a`)
+- **Favicon & Brand Icon**: Sello circular rojo (`#dc2626`) con glifo de fractura cruzada blanca centrado
 
-**Decisión técnica:** Los hex del principal (`#3b82f6` blue-500 y `#ef4444` red-500) NO pasan WCAG AA strict sobre blanco como texto. Para mantener la identidad visual + accesibilidad simultaneamente, usamos los tonos inmediatamente más oscuros que sí pasan:
-- `brand.accent` = `#1d4ed8` (blue-700, 6.70:1 AA) — derivado de `primary #3b82f6`
-- `brand.cta` = `#dc2626` (red-600, 4.83:1 AA) — derivado de `destructive #ef4444`
-- Diferencia visual mínima, accesibilidad garantizada.
+**Decisión técnica:**
+- `brand.accent` = `#dc2626` (red-600, 4.83:1 AA sobre blanco)
+- `brand.cta` = `#dc2626` (red-600, 4.83:1 AA con texto blanco)
+- Todos los iconos PWA, favicons (`src/app/favicon.ico`, `public/favicon.ico`, `public/icons/`) y Apple touch icons son **estrictamente circulares** con fondo `#dc2626`.
 
 ### 7.2 Source of Truth
 
@@ -264,20 +264,20 @@ Tres lugares, una sola verdad. Si cambia un hex, se actualiza en los tres y se c
 
 1. **`src/lib/ui/tokens.ts`** — `SEMANTIC_TOKENS` con tipos `SemanticTokens` y `StatusTriple`. Tests `tokens.test.ts` validan contraste.
 2. **`src/app/globals.css`** — Variables CSS consumidas por Tailwind vía `var(--*)` en `tailwind.config.ts`.
-3. **`tailwind.config.ts`** — Hex directos para `status-*` y `triage-*`.
+3. **`tailwind.config.ts`** — Hex directos para `status-*`, `triage-*` y animaciones de foco `ring-pulse`.
 
 `src/app/manifest.ts` y `src/app/layout.tsx` (`viewport.themeColor`) deben coincidir con `--surface-0`.
 
-### 7.3 Paleta Actual (Tema Claro, alineada a RutaDeAyuda)
+### 7.3 Paleta Actual (Tema Claro)
 
 #### Superficies (4 niveles)
 
-| Token | Hex | Equivalente RutaDeAyuda |
+| Token | Hex | Uso |
 |---|---|---|
-| `surface-0` | `#ffffff` | `background` |
-| `surface-1` | `#f1f5f9` | `muted` |
-| `surface-2` | `#e2e8f0` | `border` |
-| `surface-3` | `#cbd5e1` | slate-300 |
+| `surface-0` | `#ffffff` | Fondo base principal |
+| `surface-1` | `#f1f5f9` | Contenedores, cards secundarias |
+| `surface-2` | `#e2e8f0` | Modales, overlays |
+| `surface-3` | `#cbd5e1` | Separadores destacados |
 
 #### Bordes y Texto (AAA estricto)
 
@@ -286,24 +286,24 @@ Tres lugares, una sola verdad. Si cambia un hex, se actualiza en los tres y se c
 | `border.subtle` | `#e2e8f0` | — |
 | `border.default` | `#cbd5e1` | — |
 | `border.strong` | `#94a3b8` | — |
-| `text.primary` | `#0f172a` | **17.85:1** ✓ (= `foreground` de RutaDeAyuda) |
-| `text.secondary` | `#334155` | **10.35:1** ✓ (slate-700) |
-| `text.muted` | `#334155` | **10.35:1** ✓ (pasa AAA en todas las surfaces) |
+| `text.primary` | `#0f172a` | **17.85:1** ✓ AAA |
+| `text.secondary` | `#334155` | **10.35:1** ✓ AAA |
+| `text.muted` | `#334155` | **10.35:1** ✓ AAA |
 
-#### Marca (rojo CTA + azul accent)
+#### Marca (Rojo Unificado Grietas Vivas)
 
 | Token | Hex | Uso |
 |---|---|---|
-| `brand.accent` | **`#1d4ed8`** | Texto/iconos/links/outlines (blue-700, AA 6.70:1 sobre blanco). |
-| `brand.cta` | **`#dc2626`** | **Fondo del CTA primario**. SIEMPRE con `text-white` (AA 4.83:1). Pill shape (`rounded-full`). |
+| `brand.accent` | **`#dc2626`** | Texto/iconos/links/outlines/focos activos (red-600, AA 4.83:1 sobre blanco). |
+| `brand.cta` | **`#dc2626`** | **Fondo del CTA primario**. SIEMPRE con `text-white` (AA 4.83:1). |
 
 #### Severidad (badges, 3 niveles)
 
 | Nivel | bg | fg | border | Contraste fg/bg |
 |---|---|---|---|---|
 | `minor` | `#16a34a` | `#052e16` | `#14532d` | 4.52:1 ✓ AA |
-| `moderate` | **`#eab308`** | `#1c1207` | `#854d0e` | **9.61:1 ✓ AAA** (= badge-yellow de RutaDeAyuda) |
-| `critical` | `#b91c1c` | `#fef2f2` | `#7f1d1d` | 5.91:1 ✓ AA (= "evacuate" tones) |
+| `moderate` | **`#eab308`** | `#1c1207` | `#854d0e` | **9.61:1 ✓ AAA** |
+| `critical` | `#b91c1c` | `#fef2f2` | `#7f1d1d` | 5.91:1 ✓ AA |
 
 #### Triage (banner post-evaluación, 4 niveles)
 
@@ -316,13 +316,11 @@ Tres lugares, una sola verdad. Si cambia un hex, se actualiza en los tres y se c
 
 ### 7.4 Sistema Unificado de Botones
 
-**Shape canonico:** `rounded-full` (pill) para TODOS los botones. Sin excepciones.
-
 | Tipo | Patrón | Uso |
 |---|---|---|
-| **Primary CTA** | `bg-brand-cta text-white rounded-full` (red pill, white text) | "Capturar Grieta", "Iniciar Sesión", "Enviar enlace", "Nueva Captura", "Ver detalles", etc. |
-| **Secondary / outline** | `bg-white border border-brand-accent text-brand-accent rounded-full` (white pill, blue border + text) | "Mis Reportes", "Centros", "Albergues", etc. |
-| **Tertiary / muted** | `bg-white border border-border-default text-text-muted rounded-full` | "Configuración", "Cancelar", links secundarios |
+| **Primary CTA** | `bg-brand-cta text-white rounded-2xl min-h-[48px]` (red button, white text) | "Capturar Grieta", "Iniciar Sesión", "Enviar enlace", "Nueva Captura", "Ver detalles", etc. |
+| **Secondary / outline** | `bg-surface-0 border border-border-default hover:border-brand-accent text-text-primary rounded-2xl` | "Mis Reportes", "Reconocimiento", "Centros", etc. |
+| **Tertiary / muted** | `text-text-muted hover:text-brand-accent rounded-full` | "Configuración", "Cancelar", links secundarios |
 | **Segmented control** | `bg-surface-2/60 p-1 rounded-full` con items `rounded-full` | Mode toggle (Contraseña / Enlace Mágico) |
 
 ### 7.4.1 Animaciones (Framer Motion)

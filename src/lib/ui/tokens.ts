@@ -69,11 +69,7 @@ export type TriageLevel =
 /**
  * Tokens semanticos verificados.
  *
- * Paleta alineada con el proyecto principal RutaDeAyuda (public/design.md).
- * SafeSpace sera embebido dentro de RutaDeAyuda, asi que el sistema visual
- * debe coincidir. El proyecto principal usa `primary #3b82f6` (blue-500),
- * pero blue-500 falla WCAG AA strict (3.68:1). Usamos `blue-800 #1e40af`
- * que pasa AAA (8.72:1) y mantiene la identidad azul institucional.
+ * Paleta oficial de Grietas Vivas con rojo de emergencia (#dc2626) como acento y CTA unificado.
  *
  * Contraste medido contra surface-0 (#ffffff) y surface-1 (#f1f5f9):
  *
@@ -81,10 +77,10 @@ export type TriageLevel =
  * | text-primary     | 18.36:1 OK  | 17.51:1 OK   | 14.83:1 OK   |
  * | text-secondary   | 11.42:1 OK  | 10.91:1 OK   | 9.24:1  OK   |
  * | text-muted       | 7.58:1  OK  | 7.24:1  OK   | 6.15:1  AA   |
- * | brand.accent     | 8.72:1  OK  | 8.32:1  OK   | 7.06:1  OK   |
- * | text-white/brand.cta | 8.72:1 OK | 8.32:1 OK   | 7.06:1  OK   |
+ * | brand.accent     | 4.83:1  AA  | 4.61:1  AA   | 3.91:1       |
+ * | text-white/brand.cta | 4.83:1 AA | 4.61:1 AA   | 3.91:1       |
  *
- * Todos los REQUIRED_TEXT_PAIRS y REQUIRED_BRAND_PAIRS >= 7:1 (AAA).
+ * Todos los REQUIRED_TEXT_PAIRS >= 7:1 (AAA) y REQUIRED_BRAND_PAIRS >= 4.5:1 (AA).
  */
 export const SEMANTIC_TOKENS: SemanticTokens = {
   surface: {
@@ -104,13 +100,10 @@ export const SEMANTIC_TOKENS: SemanticTokens = {
     muted: '#334155',
   },
   brand: {
-    // Blue-700 (derivado del primary #3b82f6 del proyecto principal).
-    // Pasa WCAG AA strict (6.70:1) sobre surface-0.
-    accent: '#1d4ed8',
-    // Red-600 — primary CTA bg segun el screenshot de RutaDeAyuda
-    // ("Buscar Personas", "Reportar Persona"). Texto encima debe ser text-white
-    // (4.83:1 AA). El principal usa #ef4444 (red-500) pero falla AA strict
-    // (3.76:1); red-600 es apenas mas oscuro y pasa.
+    // Red-600 (#dc2626) — Acento institucional unificado para CTAs, botones, bordes activos y focos.
+    // Pasa WCAG AA (4.83:1) sobre surface-0 (#ffffff).
+    accent: '#dc2626',
+    // Red-600 (#dc2626) — Fondo del CTA primario con texto blanco (4.83:1 AA).
     cta: '#dc2626',
   },
   status: {
@@ -248,8 +241,8 @@ export const REQUIRED_BRAND_PAIR: ContrastPair = {
 
 /**
  * Par requerido para el texto blanco sobre el fondo del CTA de marca.
- * El CTA usa brand.cta (#1e40af blue-800) como bg y blanco como fg —
- * contraste esperado: 8.72:1 (AAA). Navy sobre azul falla 2:1.
+ * El CTA usa brand.cta (#dc2626 red-600) como bg y blanco como fg —
+ * contraste verificado: 4.83:1 (AA).
  */
 export const REQUIRED_CTA_PAIR: ContrastPair = {
   label: 'text-white/brand-cta',
