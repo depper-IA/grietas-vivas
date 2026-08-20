@@ -50,10 +50,11 @@ const BASE_STEPS: StepId[] = ['element', 'crosses', 'growth', 'scale'];
  * Realiza preguntas de opción múltiple sobre el elemento donde se ubica la grieta.
  * Este contexto alimenta el motor de reglas estructurales para ponderar el nivel de riesgo.
  *
- * La referencia de escala se limita a moneda colombiana o mano: se eliminó la opción
- * de "tarjeta" porque en una emergencia el usuario suele usar la tarjeta que tenga a
- * mano (bancaria o cédula), y esa foto viaja a proveedores de IA externos y queda
- * almacenada — un riesgo de exposición de datos personales/de pago injustificado.
+ * La referencia de escala soporta: moneda colombiana, regla o cinta métrica, o mano.
+  * Se eliminó la opción de "tarjeta" porque en una emergencia el usuario suele usar
+  * la tarjeta que tenga a mano (bancaria o cédula), y esa foto viaja a proveedores
+  * de IA externos y queda almacenada — un riesgo de exposición de datos
+  * personales/de pago injustificado.
  *
  * Cero emojis: utiliza exclusivamente iconografía de Lucide React y tokens semánticos dark-first.
  */
@@ -249,9 +250,10 @@ function getStepConfig(stepId: StepId): QuestionDef {
     case 'scale':
       return {
         question: '¿Pusiste un objeto de referencia junto a la grieta?',
-        subtitle: '(moneda o mano) para medir el tamaño real',
+        subtitle: '(moneda, regla o cinta métrica, o mano) para medir el tamaño real',
         options: [
           { label: 'Sí, una moneda', value: 'coin', Icon: Coins },
+          { label: 'Sí, una regla o cinta', value: 'ruler', Icon: Ruler },
           { label: 'Sí, mi mano', value: 'hand', Icon: Hand },
           { label: 'No, ninguno', value: 'none', Icon: XCircle },
         ],

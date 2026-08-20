@@ -128,7 +128,7 @@ function DetailFrame() {
         {/* Texto guia sobre banda semitransparente */}
         <span className="absolute inset-x-0 bottom-3 mx-auto flex max-w-[92%] items-center justify-center gap-1.5 rounded-xl bg-black/80 px-3 py-2 text-center text-xs font-semibold text-white sm:text-sm shadow-xl backdrop-blur-md border border-white/20">
           <Coins className="h-4 w-4 text-status-moderate shrink-0" aria-hidden="true" />
-          <span>Detalle (30-50 cm) · Coloca una moneda o tarjeta al lado</span>
+          <span>Detalle (30-50 cm) · Coloca una moneda ($500 o $1.000) o tu mano al lado</span>
         </span>
       </div>
     </div>
@@ -349,7 +349,7 @@ export function DualCaptureHUD({
         <p className="text-xs sm:text-sm leading-snug text-text-secondary flex-1">
           {isContext
             ? 'Aléjate unos 2 metros. Enmarca columnas, vigas y elementos estructurales del entorno.'
-            : 'Acércate a 30-50 cm. Coloca una moneda o tarjeta al lado para dar escala a la IA.'}
+            : 'Acércate a 30-50 cm. Coloca una moneda ($500 o $1.000) o tu mano al lado para dar escala a la IA.'}
         </p>
         <button
           type="button"
@@ -397,7 +397,7 @@ export function DualCaptureHUD({
             <p className="text-xs text-text-secondary leading-relaxed">
               {isContext
                 ? 'Muestra las uniones con columnas, vigas y losas para que los algoritmos de IA entiendan la ubicación global del daño.'
-                : 'Una moneda o tarjeta permite a la IA calibrar con exactitud el ancho milimétrico y la profundidad de la fisura.'}
+                : 'Coloca una moneda ($500 o $1.000) o tu mano al lado para que la IA calibre con exactitud el ancho milimétrico y la profundidad de la fisura.'}
             </p>
 
             <button
