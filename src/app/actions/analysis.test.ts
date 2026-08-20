@@ -2,6 +2,7 @@
  * Tests for the analyzeWithFallback Server Action.
  *
  * Validates:
+ * - Authorization: only authenticated callers may consume server-managed AI keys
  * - Successful analysis flow with mocked providers
  * - Input validation (empty image, oversized image)
  * - Error handling when all providers fail
@@ -11,9 +12,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Use vi.hoisted to ensure mock functions are available at factory time
-const { mockAnalyze, mockRegisterProvider } = vi.hoisted(() => ({
+const { mockAnalyze, mockRegisterProvider, mockGetUser } = vi.hoisted(() => ({
   mockAnalyze: vi.fn(),
   mockRegisterProvider: vi.fn(),
+  mockGetUser: vi.fn(),
+}));
+
+// Mock the Supabase server client (the action authenticates before doing work)
+vi.mock('@/lib/db/supabase', () => ({
+  createServerSupabaseClient: vi.fn().mockResolvedValue({
+    auth: { getUser: mockGetUser },
+  }),
 }));
 
 // Mock the provider modules
@@ -59,6 +68,11 @@ describe('analyzeWithFallback', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default to an authenticated caller; authorization tests override this.
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'user-123' } },
+      error: null,
+    });
     // Set env vars for testing
     process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
     process.env.NVIDIA_NIM_API_KEY = 'test-nvidia-key';
@@ -67,6 +81,61 @@ describe('analyzeWithFallback', () => {
   afterEach(() => {
     delete process.env.OPENROUTER_API_KEY;
     delete process.env.NVIDIA_NIM_API_KEY;
+  });
+
+  describe('authorization', () => {
+    it('rejects unauthenticated callers with UNAUTHORIZED', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+      const result = await analyzeWithFallback({
+        imageBase64: validBase64Image,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.error.code).toBe('UNAUTHORIZED');
+      }
+    });
+
+    it('rejects callers whose session lookup errors', async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: new Error('invalid JWT'),
+      });
+
+      const result = await analyzeWithFallback({
+        imageBase64: validBase64Image,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.error.code).toBe('UNAUTHORIZED');
+      }
+    });
+
+    it('never consumes server-managed AI keys for unauthenticated callers', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+      await analyzeWithFallback({ imageBase64: validBase64Image });
+
+      // The whole point of the check: no provider is instantiated and no
+      // upstream request is made, so the owner's API keys are never spent.
+      expect(mockRegisterProvider).not.toHaveBeenCalled();
+      expect(mockAnalyze).not.toHaveBeenCalled();
+    });
+
+    it('authenticates before validating input', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+      // Invalid input from an anonymous caller must still report UNAUTHORIZED,
+      // so the action never doubles as an unauthenticated validation oracle.
+      const result = await analyzeWithFallback({ imageBase64: '' });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.error.code).toBe('UNAUTHORIZED');
+      }
+    });
   });
 
   describe('successful analysis flow', () => {

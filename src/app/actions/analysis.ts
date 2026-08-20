@@ -6,6 +6,7 @@
  * Supports multi-image analysis and structural context prompt augmentation.
  *
  * Security invariants:
+ * - Only authenticated callers may spend the server-managed API keys
  * - Fallback API keys are read exclusively from environment variables
  * - Image data is the ONLY input — no PII, no GPS, no metadata
  * - Error responses never expose env variable names or internal paths
@@ -18,6 +19,7 @@ import { z } from 'zod';
 import { AIServiceAdapter } from '@/lib/ai/aiService';
 import { OpenRouterProvider } from '@/lib/ai/providers/openrouter';
 import { NVIDIANIMProvider } from '@/lib/ai/providers/nvidia-nim';
+import { createServerSupabaseClient } from '@/lib/db/supabase';
 import type { AnalysisResult } from '@/lib/ai/types';
 import type { SafeErrorResponse } from '@/lib/errors/types';
 import {
@@ -66,6 +68,28 @@ export async function analyzeWithFallback(input: {
   contextImageBase64?: string;
   structuralContext?: unknown;
 }): Promise<AnalyzeWithFallbackResult> {
+  // Authenticate FIRST. Server Actions are public HTTP endpoints reachable by
+  // action id from any route, so the middleware is not an authorization
+  // boundary for them — without this check an anonymous caller could spend the
+  // server-managed provider keys as a free inference proxy.
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return {
+      success: false,
+      error: {
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Autenticación requerida. Por favor inicia sesión e intenta de nuevo.',
+        },
+      },
+    };
+  }
+
   // Validate input
   const validation = fallbackAnalysisInputSchema.safeParse(input);
   if (!validation.success) {
