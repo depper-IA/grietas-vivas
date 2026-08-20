@@ -22,6 +22,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   storeEncryptedByokConfig,
   clearStoredKey,
+  hasStoredKey,
+  retrieveEncryptedByokConfig,
 } from '@/lib/crypto/byokEncryption';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
 import { PROVIDER_METADATA, PROVIDER_ORDER } from '@/lib/ai/providers/config';
@@ -71,6 +73,7 @@ export function ByokConfigForm({
     initialProvider ?? configuredProvider ?? 'gemini',
   );
   const [apiKey, setApiKey] = useState('');
+  const [storedKeyPreview, setStoredKeyPreview] = useState<string | null>(null);
   const [baseUrl, setBaseUrl] = useState(
     initialBaseUrl ?? PROVIDER_METADATA[initialProvider ?? configuredProvider ?? 'gemini'].defaultBaseUrl,
   );
@@ -97,6 +100,7 @@ export function ByokConfigForm({
     setModel(meta.defaultModel);
     setCustomModel('');
     setError(null);
+    setStoredKeyPreview(null);
   }, []);
 
   const handleResetBaseUrl = useCallback(() => {
@@ -112,11 +116,17 @@ export function ByokConfigForm({
 
       try {
         if (!apiKey.trim()) {
-          setError('Por favor ingresa tu clave API.');
-          setLoading(false);
-          apiKeyInputRef.current?.focus();
-          return;
+          if (storedKeyPreview) {
+            // User is updating other settings without changing the key — use stored key
+          } else {
+            setError('Por favor ingresa tu clave API.');
+            setLoading(false);
+            apiKeyInputRef.current?.focus();
+            return;
+          }
         }
+
+        const effectiveApiKey = apiKey.trim() || storedKeyPreview || '';
 
         const effectiveModel =
           model === 'custom'
@@ -136,7 +146,7 @@ export function ByokConfigForm({
 
         await storeEncryptedByokConfig(
           {
-            apiKey: apiKey.trim(),
+            apiKey: effectiveApiKey,
             provider: selectedProvider,
             model: effectiveModel,
             baseUrl: baseUrl.trim() || undefined,
@@ -145,6 +155,7 @@ export function ByokConfigForm({
           session.access_token,
         );
 
+        setStoredKeyPreview(effectiveApiKey);
         setApiKey('');
         setSuccess(
           `Clave de ${PROVIDER_METADATA[selectedProvider].name} guardada correctamente (${effectiveModel}).`,
@@ -171,6 +182,7 @@ export function ByokConfigForm({
 
   const handleClear = useCallback(() => {
     clearStoredKey();
+    setStoredKeyPreview(null);
     setSuccess(
       'Clave eliminada. Se usará el modelo predeterminado del servidor (NVIDIA MiniMax M3).',
     );
@@ -190,6 +202,26 @@ export function ByokConfigForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProvider]);
+
+  // Load stored key preview on mount for the eye toggle
+  useEffect(() => {
+    async function loadStoredKey() {
+      if (!hasStoredKey()) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const config = await retrieveEncryptedByokConfig(session.access_token);
+          if (config?.apiKey) {
+            setStoredKeyPreview(config.apiKey);
+          }
+        }
+      } catch {
+        // silently fail — key might be corrupted
+      }
+    }
+    void loadStoredKey();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currentMeta = PROVIDER_METADATA[selectedProvider];
 
@@ -314,16 +346,25 @@ export function ByokConfigForm({
             <label htmlFor="api-key" className="block text-xs font-semibold text-text-primary">
               Clave de API *
             </label>
+            {storedKeyPreview && !apiKey && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                <CheckCircle2 className="h-3 w-3" />
+                Guardada
+              </span>
+            )}
           </div>
           <div className="relative">
             <input
               ref={apiKeyInputRef}
               id="api-key"
               type={showKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              value={apiKey || (showKey && storedKeyPreview ? storedKeyPreview : '')}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setError(null);
+              }}
               placeholder={
-                configuredProvider === selectedProvider
+                storedKeyPreview
                   ? '••••••••••••••••••••••••'
                   : 'Ingresa tu API Key...'
               }
