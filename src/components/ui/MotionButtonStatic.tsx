@@ -92,18 +92,21 @@ export const MotionButton = forwardRef<HTMLButtonElement | HTMLAnchorElement, Mo
 
     if (href !== undefined) {
       return (
-        <Link href={href} passHref legacyBehavior>
-          <motion.a
-            ref={resolvedRef as React.Ref<HTMLAnchorElement>}
-            id={id}
-            data-testid={testId}
-            className={className}
-            aria-label={ariaLabel}
+        <Link
+          href={href}
+          ref={resolvedRef as React.Ref<HTMLAnchorElement>}
+          id={id}
+          data-testid={testId}
+          className={className}
+          aria-label={ariaLabel}
+        >
+          <motion.span
+            className="flex items-center justify-center gap-3 w-full h-full"
             {...motionProps}
             {...restProps}
           >
             {children}
-          </motion.a>
+          </motion.span>
         </Link>
       );
     }

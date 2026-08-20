@@ -1,6 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   BookOpen,
   Camera,
@@ -10,10 +13,33 @@ import {
   MapPin,
   Sparkles,
   ChevronRight,
+  LogIn,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { MotionButton } from '@/components/ui/MotionButton';
+import { createBrowserSupabaseClient } from '@/lib/db/supabase';
 
 export default function Home() {
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserEmail(user?.email ?? null);
+      setLoading(false);
+    });
+  }, []);
+
+  async function handleLogout() {
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    setUserEmail(null);
+    router.refresh();
+  }
+
   return (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-surface-0 px-4 py-5 sm:px-6 sm:py-8 text-text-primary pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] overflow-x-hidden">
       {/* Hero Container: Logo + Title + Value Prop */}
@@ -57,51 +83,87 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Auth state indicator — visible login CTA for unauthenticated users */}
+      {!loading && (
+        <div className="w-full max-w-md mx-auto mt-6">
+          {userEmail ? (
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-surface-1 border border-border-default">
+              <span className="flex items-center gap-2 min-w-0">
+                <User className="h-4 w-4 text-brand-accent shrink-0" aria-hidden="true" />
+                <span className="text-xs text-text-secondary truncate">{userEmail}</span>
+              </span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 active:scale-[0.96] transition-all shrink-0"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Salir</span>
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="flex min-h-[48px] w-full items-center justify-center gap-2.5 rounded-xl bg-surface-1 border-2 border-brand-accent px-5 text-sm font-semibold text-brand-accent hover:bg-brand-accent hover:text-white active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2"
+            >
+              <LogIn className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
+              <span>Iniciar Sesión</span>
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Actions: Touch-first stack with primary CTA */}
       <div className="relative w-full max-w-md mx-auto flex flex-col gap-2.5 mt-8">
-        {/* CTA primario — Capturar foto con HUD */}
-        <MotionButton
-          href="/capture"
-          aria-label="Iniciar captura guiada de foto de grieta"
-          className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl bg-brand-cta px-6 text-base font-bold text-white shadow-lg shadow-brand-cta/30 hover:bg-brand-cta/90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
-        >
-          <span className="flex items-center gap-3">
-            <Camera className="h-5 w-5 shrink-0" aria-hidden="true" />
-            <span>Capturar Grieta</span>
-          </span>
-          <ChevronRight className="h-5 w-5 shrink-0" aria-hidden="true" />
-        </MotionButton>
+        {/* CTA primario — Capturar foto con HUD (only when logged in) */}
+        {userEmail && (
+          <MotionButton
+            href="/capture"
+            aria-label="Iniciar captura guiada de foto de grieta"
+            className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl bg-brand-cta px-6 text-base font-bold text-white shadow-lg shadow-brand-cta/30 hover:bg-brand-cta/90 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-brand-accent focus:ring-offset-2 focus:ring-offset-surface-0"
+          >
+            <span className="flex items-center gap-3">
+              <Camera className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span>Capturar Grieta</span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0" aria-hidden="true" />
+          </MotionButton>
+        )}
 
         {/* Secondary actions grid */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <MotionButton
-            href="/reports"
-            aria-label="Ver mis reportes de triaje estructural"
-            className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-border-default bg-surface-0 px-4 text-sm font-semibold text-text-primary hover:border-brand-accent hover:bg-surface-1 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent"
-          >
-            <FileText className="h-4 w-4 text-brand-accent shrink-0" aria-hidden="true" />
-            <span>Reportes</span>
-          </MotionButton>
+        <div className={userEmail ? 'grid grid-cols-2 gap-2.5' : 'flex'}>
+          {userEmail && (
+            <MotionButton
+              href="/reports"
+              aria-label="Ver mis reportes de triaje estructural"
+              className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-border-default bg-surface-0 px-4 text-sm font-semibold text-text-primary hover:border-brand-accent hover:bg-surface-1 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent"
+            >
+              <FileText className="h-4 w-4 text-brand-accent shrink-0" aria-hidden="true" />
+              <span>Reportes</span>
+            </MotionButton>
+          )}
 
           <MotionButton
             href="/reconocimiento"
             aria-label="Abrir galería de reconocimiento de grietas"
-            className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-border-default bg-surface-0 px-4 text-sm font-semibold text-text-primary hover:border-brand-accent hover:bg-surface-1 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent"
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-border-default bg-surface-0 px-4 text-sm font-semibold text-text-primary hover:border-brand-accent hover:bg-surface-1 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent"
           >
             <BookOpen className="h-4 w-4 text-brand-accent shrink-0" aria-hidden="true" />
             <span>Reconocimiento</span>
           </MotionButton>
         </div>
 
-        {/* Tertiary action: Settings */}
-        <MotionButton
-          href="/settings"
-          aria-label="Ir a configuración y proveedores de IA"
-          className="flex min-h-[44px] items-center justify-center gap-2 rounded-full text-xs text-text-muted hover:text-brand-accent active:scale-[0.98] transition-all"
-        >
-          <Settings2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Configuración y Modelos IA</span>
-        </MotionButton>
+        {/* Tertiary action: Settings — only when logged in */}
+        {userEmail && (
+          <MotionButton
+            href="/settings"
+            aria-label="Ir a configuración y proveedores de IA"
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-full text-xs text-text-muted hover:text-brand-accent active:scale-[0.98] transition-all"
+          >
+            <Settings2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Configuración y Modelos IA</span>
+          </MotionButton>
+        )}
       </div>
 
       {/* Footer minimalista — sin duplicación */}
