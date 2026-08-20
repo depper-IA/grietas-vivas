@@ -21,6 +21,7 @@ import {
   getQueueCount as queueCount,
 } from './queue';
 import { detectConflict, preserveConflict } from './conflictResolver';
+import { logSync } from '@/lib/errors/secureLogger';
 
 /** Maximum retry attempts before marking an item as failed. */
 export const MAX_RETRIES = 3;
@@ -164,11 +165,14 @@ class SyncManager implements ISyncManager {
     };
     await updateQueueItem(syncingItem);
 
+    const startedAt = Date.now();
+
     try {
       await this.syncWithTimeout(syncingItem);
 
       // Success — remove from queue
       await removeFromQueue(item.id);
+      logSync({ itemId: item.id, success: true, duration: Date.now() - startedAt });
       return { id: item.id, success: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
@@ -192,6 +196,12 @@ class SyncManager implements ISyncManager {
           error: errorMessage,
         };
         await updateQueueItem(failedItem);
+        logSync({
+          itemId: item.id,
+          success: false,
+          duration: Date.now() - startedAt,
+          error: errorMessage,
+        });
         return { id: item.id, success: false, error: errorMessage };
       }
 

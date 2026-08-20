@@ -102,9 +102,9 @@ export function logAnalysis(data: AnalysisLogEntry): void {
   };
 
   if (data.success) {
-    console.info('[SafeSpace:Analysis]', JSON.stringify(entry));
+    console.info('[GrietasVivas:Analysis]', JSON.stringify(entry));
   } else {
-    console.warn('[SafeSpace:Analysis]', JSON.stringify(entry));
+    console.warn('[GrietasVivas:Analysis]', JSON.stringify(entry));
   }
 }
 
@@ -126,8 +126,8 @@ export function logSync(data: SyncLogEntry): void {
   };
 
   if (data.success) {
-    console.info('[SafeSpace:Sync]', JSON.stringify(entry));
+    console.info('[GrietasVivas:Sync]', JSON.stringify(entry));
   } else {
-    console.warn('[SafeSpace:Sync]', JSON.stringify(entry));
+    console.warn('[GrietasVivas:Sync]', JSON.stringify(entry));
   }
 }
