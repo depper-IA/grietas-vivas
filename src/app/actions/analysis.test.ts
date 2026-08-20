@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { _resetRateLimitStore } from '@/lib/security/rateLimit';
 
 // Use vi.hoisted to ensure mock functions are available at factory time
 const { mockAnalyze, mockRegisterProvider, mockGetUser } = vi.hoisted(() => ({
@@ -68,6 +69,8 @@ describe('analyzeWithFallback', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset rate limit store so test order doesn't leak quota between tests.
+    _resetRateLimitStore();
     // Default to an authenticated caller; authorization tests override this.
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'user-123' } },
@@ -381,6 +384,50 @@ describe('analyzeWithFallback', () => {
       await analyzeWithFallback({ imageBase64: validBase64Image });
 
       expect(NVIDIANIMProvider).toHaveBeenCalledWith('test-nvidia-key');
+    });
+  });
+
+  describe('rate limiting', () => {
+    it('rechaza con RATE_LIMITED despues de 10 requests/min del mismo usuario', async () => {
+      mockAnalyze.mockResolvedValue({
+        riskLevel: 'low',
+        description: 'Test',
+        confidence: 0.5,
+        provider: 'openrouter',
+        analyzedAt: '2024-01-15T10:00:00.000Z',
+      });
+
+      // 10 requests pasan
+      for (let i = 0; i < 10; i++) {
+        const result = await analyzeWithFallback({
+          imageBase64: validBase64Image,
+        });
+        expect(result.success).toBe(true);
+      }
+
+      // La 11a es rechazada por rate limit
+      const limited = await analyzeWithFallback({
+        imageBase64: validBase64Image,
+      });
+      expect(limited.success).toBe(false);
+      if (!limited.success) {
+        expect(limited.error.error.code).toBe('RATE_LIMITED');
+      }
+    });
+
+    it('autentica ANTES de aplicar rate limit (anonymous no consume cuota)', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+      // 20 attempts anonimas — todas deben seguir dando UNAUTHORIZED, no RATE_LIMITED
+      for (let i = 0; i < 20; i++) {
+        const result = await analyzeWithFallback({
+          imageBase64: validBase64Image,
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.error.code).toBe('UNAUTHORIZED');
+        }
+      }
     });
   });
 });
