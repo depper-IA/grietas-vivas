@@ -240,9 +240,13 @@ export function ExpertCalibrationSection({
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                maxLength={500}
                 placeholder="Ej. Falla por cortante en muro de carga, se observa deformación en el dintel."
                 className="w-full rounded-xl border border-border-default bg-surface-2 p-3 text-xs sm:text-sm text-text-primary placeholder:text-text-muted focus:border-brand-accent focus:outline-none"
               />
+              <p className="mt-1 text-right text-[11px] tabular-nums text-text-muted">
+                {notes.length} / 500
+              </p>
             </div>
 
             {errorMsg && (

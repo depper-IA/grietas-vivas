@@ -46,7 +46,7 @@ import { ImageZoomModal } from '@/components/ui/ImageZoomModal';
 import { ExpertCalibrationSection } from '@/components/reports/ExpertCalibrationSection';
 import { createBrowserSupabaseClient } from '@/lib/db/supabase';
 import { getCapture, deleteCapture, updateCapture } from '@/lib/db/localDb';
-import { generateReport, deleteReport, updateReportAnalysis, type ReportOutput } from '@/app/actions/report';
+import { generateReport, deleteReport, reanalyzeReport, type ReportOutput } from '@/app/actions/report';
 import { analyzeWithFallback } from '@/app/actions/analysis';
 import type { StructuralContext } from '@/lib/ai/structuralPrompt';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
@@ -334,6 +334,45 @@ export default function ReportDetailPage() {
     setReanalyzeError(null);
 
     try {
+      const isCloudReport = Boolean(report.id) && !report.id.startsWith('local-');
+
+      // Cloud reports are re-analyzed entirely server-side: we send only the
+      // report id, and the server reads the stored evidence and runs the model
+      // itself. The client never supplies the verdict that gets persisted.
+      if (isCloudReport) {
+        const res = await reanalyzeReport({ reportId: report.id });
+
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message || 'El reanálisis con IA no pudo completarse.');
+        }
+
+        const { riskLevel, description, confidence, provider } = res.data;
+
+        setReport((prev) =>
+          prev
+            ? {
+                ...prev,
+                riskLevel: riskLevel as RiskLevel,
+                analysisText: description,
+                analysisConfidence: confidence,
+                analysisProvider: provider || 'ai',
+              }
+            : prev
+        );
+
+        try {
+          await updateCapture(report.id, { analysisResult: res.data });
+        } catch {
+          // The cached copy is best-effort; the cloud row is the source of truth.
+        }
+
+        return;
+      }
+
+      // Offline-only capture: it has no row in the database and no image in
+      // storage, so the server cannot fetch the evidence. Analyze from the
+      // local blob and persist to IndexedDB only — nothing here feeds a report
+      // that claims forensic value.
       let imageBase64 = '';
       if (report.imageBlob) {
         imageBase64 = await blobToBase64(report.imageBlob);
@@ -366,7 +405,6 @@ export default function ReportDetailPage() {
 
       const { riskLevel, description, confidence, provider } = aiResult.data;
 
-      // Update local state
       setReport((prev) =>
         prev
           ? {
@@ -379,26 +417,10 @@ export default function ReportDetailPage() {
           : prev
       );
 
-      // Update IndexedDB if local capture
       try {
-        await updateCapture(report.id, {
-          analysisResult: aiResult.data,
-        });
+        await updateCapture(report.id, { analysisResult: aiResult.data });
       } catch {
-        // Ignored if only in cloud
-      }
-
-      // Update Supabase if cloud report
-      if (report.id && !report.id.startsWith('local-')) {
-        await updateReportAnalysis({
-          reportId: report.id,
-          analysisResult: {
-            riskLevel,
-            description,
-            confidence,
-            provider: provider || 'ai',
-          },
-        });
+        // Ignored if the capture is no longer in the local cache.
       }
     } catch (err) {
       setReanalyzeError(err instanceof Error ? err.message : 'Error al re-analizar con IA.');
