@@ -26,6 +26,7 @@ import {
   structuralContextSchema,
   type StructuralContext,
 } from '@/lib/ai/structuralPrompt';
+import { checkRateLimit, SafeError } from '@/lib/security/rateLimit';
 
 /**
  * Maximum base64 image size: ~13.7 MB (accommodates a 10 MB raw image).
@@ -88,6 +89,21 @@ export async function analyzeWithFallback(input: {
         },
       },
     };
+  }
+
+  // Rate limit BEFORE doing any provider work — protects server-managed
+  // fallback keys from abuse. 10 requests/min keeps the average user fluid
+  // while preventing a runaway client from spending shared quota.
+  try {
+    await checkRateLimit(user.id, 'analysis', 10);
+  } catch (error) {
+    if (error instanceof SafeError) {
+      // analysis.ts uses the full SafeErrorResponse envelope (matches its
+      // existing return shape), while sync.ts / report.ts use the inner
+      // `error` shape. Match the local convention of this file.
+      return { success: false, error: error.safeResponse };
+    }
+    throw error;
   }
 
   // Validate input

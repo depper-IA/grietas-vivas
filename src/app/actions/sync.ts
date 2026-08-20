@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/db/supabase';
 import { syncPayloadSchema, fileNameSchema } from '@/lib/validation/schemas';
 import type { SafeErrorResponse } from '@/lib/errors/types';
 import { randomUUID } from 'crypto';
+import { checkRateLimit, SafeError } from '@/lib/security/rateLimit';
 
 /**
  * Result of a successful sync operation.
@@ -67,6 +68,17 @@ export async function syncCapture(data: {
           message: 'Autenticación requerida. Por favor inicia sesión e intenta de nuevo.',
         },
       };
+    }
+
+    // Rate limit BEFORE doing any storage work. 30 req/min — sync includes
+    // image upload so it is bandwidth-heavier than analysis; allow more headroom.
+    try {
+      await checkRateLimit(user.id, 'sync', 30);
+    } catch (error) {
+      if (error instanceof SafeError) {
+        return { success: false, error: error.safeError };
+      }
+      throw error;
     }
 
     // 2. Validate input payload
