@@ -6,6 +6,7 @@
 Captura con metadatos certificados · Análisis asistido por IA · Motor de reglas NSR-10 · Reportes PDF con hash SHA-256 · Offline-first
 Desarrollado en respuesta a la emergencia en Cali, Colombia · Por [Sam Wilkie](https://github.com/depper-IA)
 
+[![Licencia](https://img.shields.io/badge/Licencia-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Demo](https://img.shields.io/badge/Demo-grietas--vivas.vercel.app-000000?style=flat-square&logo=vercel&logoColor=white)](https://grietas-vivas.vercel.app)
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -292,6 +293,12 @@ La documentación de producto y diseño técnico está en [`docs/PRD.md`](docs/P
 ![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
 
 </div>
+
+---
+
+## Licencia
+
+Este proyecto se distribuye bajo la **Licencia Apache 2.0**. Esto significa que puedes usarlo, modificarlo y distribuirlo libremente, incluso en contextos institucionales o comerciales, siempre que mantengas el aviso de copyright original. Consulta el archivo [LICENSE](LICENSE) y el archivo [NOTICE](NOTICE) para más información.
 
 ---
 
