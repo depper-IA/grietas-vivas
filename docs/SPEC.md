@@ -7,8 +7,8 @@
 | **Nombre** | Grietas Vivas — Earthquake Crack Triage PWA |
 | **Versión** | 1.1 |
 | **URL Producción** | https://safespace-pwa.vercel.app |
-| **Backend** | https://kjkoyjcupljvqxeqvwba.supabase.co |
-| **Repositorio** | (local: o:\Compartidas\Grietas Vivas) |
+| **Backend** | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
+| **Repositorio** | https://github.com/depper-IA/grietas-vivas |
 | **Stack** | Next.js 14 + TypeScript + Supabase + Tailwind CSS |
 | **Tests** | 249 tests (Vitest + fast-check) |
 | **Hosting** | Vercel (frontend) + Supabase (backend + Edge Functions) |
