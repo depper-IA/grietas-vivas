@@ -6,7 +6,7 @@
 |-------|-------|
 | **Nombre** | Grietas Vivas — Earthquake Crack Triage PWA |
 | **Versión** | 1.1 |
-| **URL Producción** | https://safespace-pwa.vercel.app |
+| **URL Producción** | https://grietas-vivas.vercel.app |
 | **Backend** | Supabase (PostgreSQL + Auth + Storage + Edge Functions) |
 | **Repositorio** | https://github.com/depper-IA/grietas-vivas |
 | **Stack** | Next.js 14 + TypeScript + Supabase + Tailwind CSS |
@@ -104,7 +104,7 @@ GrietasVivas/
 - **Sesión**: 7 días máximo, refresh automático via middleware
 - **Password**: 8-128 caracteres
 - **Magic link**: Expira en 60 minutos
-- **Redirect URL**: https://safespace-pwa.vercel.app/confirm
+- **Redirect URL**: https://grietas-vivas.vercel.app/confirm
 - **RLS**: Toda tabla y bucket tiene políticas que restringen a `auth.uid()`
 
 ## 5. AI Providers
@@ -227,7 +227,7 @@ if (user has BYOK key configured) {
 ### Backend (Supabase)
 - Migraciones: `supabase db push --linked`
 - Edge Functions: `supabase functions deploy generate-report`
-- Auth URL config: Site URL = https://safespace-pwa.vercel.app
+- Auth URL config: Site URL = https://grietas-vivas.vercel.app
 
 ### Checklist de Deploy
 - [ ] Migraciones SQL aplicadas (4 archivos)
